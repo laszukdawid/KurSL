@@ -65,9 +65,9 @@ class KurSL:
     
         # Apply phase relation to obtain amplitude (ampC)
         # and phase (phiC) components.
-        ampC = 1./np.sqrt(dPhi/dPhi[:,0][:,None])
+        ampC = R[:,None]/np.sqrt(dPhi/dPhi[:,0][:,None])
         phiC = cos(phi[:,:-1])
-        S = R[:,None]*ampC*phiC
+        S = ampC*phiC
     
         return phiC, ampC, S
     
@@ -191,6 +191,8 @@ if __name__ == "__main__":
             yMax = np.max(np.abs(A[n]))
             py.ylim((-yMax*1.05, yMax*1.05))
             py.locator_params(axis='y', nbins=4)
+            if(n==0): py.title("Time series")
+            if(n==oscN-1): py.xlabel("Time [s]")
             if(n!=oscN-1): py.gca().axes.get_xaxis().set_ticks([])
 
             # Frequency domain
@@ -199,6 +201,8 @@ if __name__ == "__main__":
             py.locator_params(axis='y', nbins=3)
 
             py.gca().axes.get_yaxis().set_ticks([])
+            if(n==0): py.title("Fourier spectrum")
+            if(n==oscN-1): py.xlabel("Frequency [Hz]")
             if(n!=oscN-1): py.gca().axes.get_xaxis().set_ticks([])
         
         #~ py.suptitle("All comp TF Dist")
