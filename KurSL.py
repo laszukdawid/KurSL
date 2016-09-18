@@ -95,15 +95,16 @@ if __name__ == "__main__":
     import pylab as py
 
     #######################################
-    # Flags
-    FIG_REC_TIME = 0
-    FIG_REC_FREQ = 0
-    FIG_REC_ALL  = 1
-    FIG_REC_DIFF = 0
+    ## Flags
     
-    SHOW_PLOTS   = 1
-    REAL_DATA = 0
-    ADD_NOISE = 0
+    # Plotting
+    FIG_REC_TIME = 0 # Plot reconstructed time series
+    FIG_REC_FREQ = 0 # Plot signal's Fourier spectrum
+    FIG_REC_ALL  = 0 # Plot all components and their FT
+    FIG_REC_DIFF = 0 # Plot components and differents to cos(wt)
+    SHOW_PLOTS   = 0 # Show plots
+
+    # Assign parameters randomly
     RANDOM = 0
     
     #######################################
@@ -152,7 +153,12 @@ if __name__ == "__main__":
     genParams = np.column_stack((W,Y0,R,K))
     genParams = genParams[np.argsort(W)[::1]]
     
-    np.savetxt('genParams.txt', genParams, fmt='%.2f',delimiter=' & ')
+    f = file('genParams.txt','w').close() # wipe file
+    f = file('genParams.txt','a')
+    l = ["W","Y0","R"] + ['k%i(%i)'%(i,j) for j in xrange(1,1+nH) for i in xrange(1,oscN)]
+    f.write(' & '.join(l)+"\n")
+    np.savetxt(f, genParams, fmt='%.2f',delimiter=' & ')
+    f.close()
     print("genParams: ", genParams)
 
     #######################################
@@ -240,6 +246,9 @@ if __name__ == "__main__":
     if FIG_REC_TIME:
         py.figure()
         py.plot(T, sInput)
+        py.title("Time series")
+        py.ylabel("Amplitude")
+        py.xlabel("Time [s]")
         py.savefig('KurSL_TD_or{}'.format(nH))
 
     ####################
@@ -247,6 +256,9 @@ if __name__ == "__main__":
         py.figure()
         py.plot(freq, FT/np.max(FT))
         py.xlim((fMin, fMax))
+        py.title("Fourier spectrum")
+        py.ylabel("Amplitude")
+        py.xlabel("Frequency [Hz]")
         py.savefig('KurSL_FD_or{}'.format(nH))
     
     ####################
