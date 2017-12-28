@@ -4,9 +4,9 @@
 # Author: Dawid Laszuk
 # Contact: laszukdawid@gmail.com
 #
-# Last update: 21/07/2016
 #
 # Feel free to contact for any information.
+from __future__ import print_function
 import numpy as np
 import pylab as py
 

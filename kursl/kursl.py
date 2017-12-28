@@ -1,28 +1,36 @@
 #!/usr/bin/python
-# Author:  Dawid Laszuk
+# coding: UTF-8
+#
+# Author: Dawid Laszuk
 # Contact: laszukdawid@gmail.com
 #
-# Last update: 21/05/2017
 #
 # Feel free to contact for any information.
 from __future__ import print_function
 import numpy as np
 
-from scipy.integrate import odeint, ode
+from scipy.integrate import ode
 
-class KurSL:
+class KurSL(object):
     """
         KurSL assigns model with parameters P.
         These parameters has to convertable to NumPy 2D array.
         It is assumed that P is (oscN, oscN*(3+nH(oscN-1))) size,
         where for each oscillators parameters are: W, ph, A, k(1)(1), ..., k(oscN-1)(nH).
     """
-    def __init__(self, P):
+    def __init__(self, P=None):
 
+        if P is not None:
+            self.set_params(P)
+
+        self.kODE = ode(self.kuramoto_ODE)
+        self.kODE.set_integrator("dopri5")
+
+    def set_params(self, P):
         # Assert conditions
         P = np.array(P)
-        assert(P.ndim == 2)
-        assert(P.shape[0]>1)
+        assert P.ndim == 2
+        assert P.shape[0]>1
 
         # Extracting model parameters
         self.oscN, self.p = oscN, p = P.shape
@@ -42,10 +50,7 @@ class KurSL:
             kMat[_nH][mask] = _k.flatten()
         self.K = kMat.copy()
 
-        self.kODE = ode(self.kuramoto_ODE)
-        self.kODE.set_integrator("dopri5")
-
-    def generateKurSL(self, t):
+    def generate(self, t):
         """Solves Kuramoto ODE for time series `t` with initial
         parameters passed when initiated object.
         """
@@ -64,15 +69,64 @@ class KurSL:
         phase[:,-1] = self.kODE.y
         dPhi = np.diff(phase)
         phase = phase[:,:-1]
+        dPhi0 = dPhi[:,0][:,None]
 
-        A = 1./np.sqrt(dPhi/dPhi[0])
-        A *= (self.R/np.max(A, axis=1))[:,None]
+        amp = np.sqrt(dPhi0/dPhi)
+        amp *= (self.R/np.max(amp, axis=1))[:,None]
         P = np.cos(phase)
-        S = A*P
+        S = amp*P
 
-        return phase, A, S
+        return phase, amp, S
 
-    def kuramoto_ODE(self, t, y, arg):
+    def __call__(self, t, P):
+        # Assert conditions
+        P = np.array(P)
+        assert P.ndim == 2
+        assert P.shape[0]>1
+
+        # Extracting model parameters
+        oscN, p = P.shape
+        nH = int((p-3)/(oscN-1))
+
+        W = P[:,0]
+        Y = P[:,1]
+        R = P[:,2]
+        K = P[:,3:]
+
+        # Convert K array to include self coupling (K_ii = 0)
+        mask = ~np.eye(oscN, dtype=bool)
+        kMat = np.zeros((nH, oscN, oscN))
+        for _nH in range(nH):
+            _k = K[:,_nH*(oscN-1):(_nH+1)*(oscN-1)]
+            kMat[_nH][mask] = _k.flatten()
+        K = kMat.copy()
+
+        kODE = ode(self.kuramoto_ODE)
+        kODE.set_integrator("dopri5")
+        kODE.set_initial_value(Y, t[0])
+        kODE.set_f_params((W, K))
+
+        phase = np.empty((oscN, len(t)))
+
+        # Run ODE integrator
+        for idx, _t in enumerate(t[1:]):
+            phase[:,idx] = kODE.y
+            kODE.integrate(_t)
+
+        phase[:,-1] = kODE.y
+        dPhi = np.diff(phase)
+        phase = phase[:,:-1]
+        dPhi0 = dPhi[:,0][:,None]
+
+        amp = np.sqrt(dPhi0/dPhi)
+        amp *= (R/np.max(amp, axis=1))[:,None]
+        P = np.cos(phase)
+        S = amp*P
+
+        return phase, amp, S
+
+    @staticmethod
+    def kuramoto_ODE(t, y, arg):
         """General Kuramoto ODE of m'th harmonic order.
            Argument `arg` = (w, k), with
             w -- iterable frequency
@@ -108,7 +162,7 @@ if __name__ == "__main__":
         import pylab as plt
 
     # Assign parameters randomly
-    RANDOM = 0
+    RANDOM = True
 
     #######################################
     # Number of oscillators
@@ -171,14 +225,14 @@ if __name__ == "__main__":
     #######################################
     ## Start model
     kurSL = KurSL(genParams)
-    phi, A, sOscInput = kurSL.generateKurSL(T)
+    phi, amp, sOscInput = kurSL.generate(T)
     sInput = np.sum(sOscInput, axis=0)
 
     T = T[:-1] # sInput based on diff
 
     saveName = 'kursl-model'
     np.savez(saveName, genParams=genParams, sOscInput=sOscInput,
-                A=A, phi=phi, T=T)
+                A=amp, phi=phi, T=T)
 
     #######################################
     # Plotting results
@@ -198,10 +252,10 @@ if __name__ == "__main__":
             # Time domain
             ax = fig.add_subplot(oscN, 2, 2*n+1)
             plt.plot(T, sOscInput[n])
-            plt.plot(T, -A[n],'r')
-            plt.plot(T,  A[n],'r')
+            plt.plot(T, -amp[n],'r')
+            plt.plot(T,  amp[n],'r')
 
-            yMax = np.max(np.abs(A[n]))
+            yMax = np.max(np.abs(amp[n]))
             plt.ylim((-yMax*1.05, yMax*1.05))
             plt.locator_params(axis='y', nbins=4)
             if(n==0): plt.title("Time series")
@@ -230,10 +284,10 @@ if __name__ == "__main__":
             # Time domain
             ax = fig.add_subplot(oscN, 2, 2*n+1)
             plt.plot(T, sOscInput[n])
-            plt.plot(T, -A[n],'r')
-            plt.plot(T,  A[n],'r')
+            plt.plot(T, -amp[n],'r')
+            plt.plot(T,  amp[n],'r')
 
-            yMax = np.max(np.abs(A[n]))
+            yMax = np.max(np.abs(amp[n]))
             plt.ylim((-yMax*1.05, yMax*1.05))
             plt.locator_params(axis='y', nbins=4)
             if(n!=oscN-1): plt.gca().axes.get_xaxis().set_ticks([])
