@@ -6,6 +6,15 @@ from kursl import KurSL
 
 class WrapperTest(unittest.TestCase):
 
+    @staticmethod
+    def generate_params(oscN, nH):
+        W = np.random.rand(oscN,1)*20+10
+        R = np.random.rand(oscN,1)*10
+        P = np.random.rand(oscN,1)
+        K = (np.random.rand(oscN,nH*(oscN-1))-0.5)*5
+        params = np.hstack((W, P, R, K))
+        return params
+
     def test_default_values(self):
         model = ModelWrapper()
         self.assertEqual(model.MIN_R, 0)
@@ -26,8 +35,7 @@ class WrapperTest(unittest.TestCase):
     def test_initiation_with_model(self):
         oscN = 3
         nH = 1
-        params = np.random.random(oscN*(3+(oscN-1)*nH))
-        params = params.reshape((oscN, -1))
+        params = self.generate_params(oscN, nH)
         kursl = KurSL(params)
         model = ModelWrapper(kursl)
 
@@ -40,7 +48,7 @@ class WrapperTest(unittest.TestCase):
 
         oscN = 3
         nH = 1
-        params = np.random.random(oscN*(3+(oscN-1)*nH))
+        params = np.random.random(oscN*(3+(oscN-1)*nH))+1
         params = params.reshape((oscN, -1))
         kursl = KurSL(params)
         model.set_model(kursl)
@@ -52,8 +60,7 @@ class WrapperTest(unittest.TestCase):
     def test_method_access_generate(self):
         oscN = 3
         nH = 1
-        params = np.random.random(oscN*(3+(oscN-1)*nH))
-        params = params.reshape((oscN, -1))
+        params = self.generate_params(oscN, nH)
         kursl = KurSL(params)
         model = ModelWrapper(kursl)
 
@@ -65,8 +72,7 @@ class WrapperTest(unittest.TestCase):
     def test_method_access_default_call(self):
         oscN = 3
         nH = 1
-        params = np.random.random(oscN*(3+(oscN-1)*nH))
-        params = params.reshape((oscN, -1))
+        params = self.generate_params(oscN, nH)
         t = np.linspace(0, 1, 200)
         model = ModelWrapper(KurSL(params))
 

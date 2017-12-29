@@ -16,8 +16,6 @@ import time, datetime
 
 from kursl import KurSL
 from kursl import ModelWrapper
-from scipy.integrate import odeint
-from scipy.stats import gaussian_kde
 
 #import warnings
 #warnings.simplefilter('always', DeprecationWarning)
@@ -222,7 +220,7 @@ class KurslMCMC(object):
         _theta = theta.reshape((model.oscN,-1))
 
         # Calculating
-        phi, a, S = model(x, _theta)
+        _, _, S = model(x, _theta)
         d = y - np.sum(S, axis=0)
 
         d_energy = np.sum(d*d)

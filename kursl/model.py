@@ -38,16 +38,20 @@ class ModelWrapper(object):
     def set_params(self, P):
         return self.model.set_params(P)
 
-    def dist_W(self, x):
+    @staticmethod
+    def dist_W(x):
         return 0
 
-    def dist_K(self, x):
+    @staticmethod
+    def dist_K(x):
         return 0
 
-    def dist_ph(self, x):
+    @staticmethod
+    def dist_ph(x):
         return 0
 
-    def dist_R(self, x):
+    @staticmethod
+    def dist_R(x):
         return 0
 
 #    def set_prior_dist(self, samples):

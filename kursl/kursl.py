@@ -37,16 +37,16 @@ class KurSL(object):
         self.nH = nH = int((p-3)/(oscN-1))
         self.P = P
 
-        self.W = W = P[:,0]
-        self.Y = Y = P[:,1]
-        self.R = R = P[:,2]
-        self.K = K = P[:,3:]
+        self.W = P[:,0]
+        self.Y = P[:,1]
+        self.R = P[:,2]
+        self.K = P[:,3:]
 
         # Convert K array to include self coupling (K_ii = 0)
         mask = ~np.eye(oscN, dtype=bool)
         kMat = np.zeros((nH, oscN, oscN))
         for _nH in range(nH):
-            _k = K[:,_nH*(oscN-1):(_nH+1)*(oscN-1)]
+            _k = self.K[:,_nH*(oscN-1):(_nH+1)*(oscN-1)]
             kMat[_nH][mask] = _k.flatten()
         self.K = kMat.copy()
 
