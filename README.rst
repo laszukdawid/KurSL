@@ -8,9 +8,12 @@ KurSL
 Examples
 ========
 
-Below are examples produced using *KurSL*. The example was generated using *KurSL* of order 3 with 3 oscillators.
+Example below was produced using the *KurSL* model. It was generated assuming three oscillators with up to second harmonic coupling.
+For code on how this example was generated please see kursl_example.py_.
 
-.. image:: KurSL_example.png
+.. _kursl_example.py: ./examples/kursl_example.py
+
+.. image:: ./examples/KurSL_example.png
     :scale: 60 %
     :alt: "Example of KurSL model"
 
