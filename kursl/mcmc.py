@@ -98,7 +98,8 @@ class KurslMCMC(object):
 
         self.set_estimates(theta_init)
 
-    def negLog(self, x):
+    @staticmethod
+    def negLog(x):
         return -np.sum(np.log(x))
 
     def set_model(self, model):
