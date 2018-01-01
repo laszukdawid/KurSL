@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # Coding: UTF-8
 import logging
 

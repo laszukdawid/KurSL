@@ -144,6 +144,22 @@ class KurSL(object):
 
         return phase
 
+    @staticmethod
+    def kuramoto_ODE_jac(self, t, y, arg):
+        """Kuramoto's Jacobian passed for ODE solver."""
+
+        w, k, n_osc = arg
+        yt = y[:,None]
+        dy = y-yt
+
+        phase = [m*k[m-1]*np.cos(m*dy) for m in range(1,1+self.nH)]
+        phase = np.sum(phase, axis=0)
+
+        for i in range(n_osc):
+            phase[i,i] = -np.sum(phase[:,i])
+
+        return phase
+
 ############################################
 ##  MAIN PROGRAMME
 if __name__ == "__main__":

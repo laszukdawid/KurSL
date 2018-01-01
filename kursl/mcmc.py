@@ -49,9 +49,9 @@ class KurslMCMC(object):
         kursl = KurSL(theta_init)
         self.set_model(kursl)
 
-        self._init_walkers(theta_std)
+        self._init_walkers(theta_init, theta_std)
 
-    def _init_walkers(self, theta_std):
+    def _init_walkers(self, theta_init, theta_std):
         """Initiating positions for walkers"""
 
         # Setting std for walkers
@@ -68,7 +68,7 @@ class KurslMCMC(object):
         self.logger.debug('theta_std: \n' + str(theta_std))
         theta_std = theta_std.flatten()
 
-        theta_flat = self.theta_init.flatten()
+        theta_flat = theta_init.flatten()
         self.init_pos = np.tile(theta_flat, (self.nwalkers, 1))
 
         # Keep first `keep` paramters and don't add any noise
