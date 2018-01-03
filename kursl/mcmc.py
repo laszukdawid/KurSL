@@ -43,7 +43,6 @@ class KurslMCMC(object):
         self.nH = nH
         self.oscN = theta_init.shape[0]
         self.perN = theta_init.shape[1]
-        assert self.perN == 3+nH*(self.oscN-1)
 
         # Setting up KurSL model, which is default (only?)
         kursl = KurSL(theta_init)

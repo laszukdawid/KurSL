@@ -57,13 +57,8 @@ class KurslMethod(object):
         self.samples = None
         self.lnprob = None
 
-        self.PLOT = False
-
         # Set parameters
         self.set_options(kwargs)
-
-        if self.PLOT and not 'plt' in globals():
-            import pylab as plt
 
     def set_options(self, options):
         _option_names = self.__dict__.keys()
@@ -98,25 +93,27 @@ class KurslMethod(object):
             raise ValueError("Incorrect detrend value")
         return y
 
-    def cost_Ln(self, X, Y, n=2):
+    @staticmethod
+    def cost_Ln(, Y, n=2):
         """Metric in Ln space. Default is Hilbert (n=2)."""
 
         diff = X-Y
 
-        if cost == 1:
+        if n == 1:
             cost = np.sum(np.abs(diff))
-        elif cost == 2:
+        elif n == 2:
             cost = np.sqrt(np.sum(diff*diff))
-        elif cost == 0:
+        elif n == 0:
             cost = np.max(np.abs(diff))
         else:
             abs_diff = np.abs(diff)
             power_n = np.power(abs_diff, n)
-            cost = np.power(np.sum(abs_diff), 1./n)
+            cost = np.power(np.sum(power_n), 1./n)
 
         return cost
 
-    def cost_lnprob(self, X, Y):
+    @staticmethod
+    def cost_lnprob(X, Y):
         """Calculates neg log value. The bigger value the better."""
         diff = X-Y
         dEnergy = diff*diff
@@ -127,7 +124,7 @@ class KurslMethod(object):
         """Returns cost of model fit under `params` to Y_target.
            It should always return value that should be minimized.
         """
-        phi, A, s_rec = self.model(t, params)
+        _, _, s_rec = self.model(t, params)
         s_rec_flat = np.sum(s_rec, axis=0)
 
         cost = np.abs(self.cost_lnprob(s_rec_flat, Y_target[:-1]))

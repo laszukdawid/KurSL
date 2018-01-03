@@ -29,8 +29,6 @@ class KurSL(object):
     def set_params(self, P):
         # Assert conditions
         P = np.array(P)
-        assert P.ndim == 2
-        assert P.shape[0]>1
 
         # Extracting model parameters
         self.oscN, self.p = oscN, p = P.shape
@@ -148,7 +146,7 @@ class KurSL(object):
     def kuramoto_ODE_jac(self, t, y, arg):
         """Kuramoto's Jacobian passed for ODE solver."""
 
-        w, k, n_osc = arg
+        _, k, n_osc = arg
         yt = y[:,None]
         dy = y-yt
 

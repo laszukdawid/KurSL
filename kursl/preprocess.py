@@ -24,33 +24,23 @@ class Preprocessor(object):
 
     _peak_types = ["triang", "norm", "lorentz"]
 
-    def __init__(self, max_osc=-1, nH=None, ratio=None, *args, **kwargs):
+    def __init__(self, max_osc=-1, nH=None, energy_ratio=None):
 
-        self.nH = nH
+        self.nH = nH if nH else 1
         self.max_osc = max_osc
 
         self.ptype = "norm"
 
-        self.energy_ratio = ratio if ratio else 0.1
+        self.energy_ratio = energy_ratio if energy_ratio else 0.1
 
         self.fMin = 0
         self.fMax = 1e10
 
         self.theta_init = None
 
-        # Set parameters
-        self.set_options(kwargs)
-
-    def set_options(self, options):
-        _option_names = self.__dict__.keys()
-        for key in options.keys():
-            if key in _option_names:
-                val = options[key]
-                self.logger.debug("Setting: self.{} = {}".format(key, val))
-                self.__dict__[key] = val
-
     @classmethod
     def _remove_peak(cls, t, s, ptype="norm"):
+        """Fit and remove peak of a given type"""
         if ptype=="norm":
             def peak(t, *p):
                 _t = (t-p[0])/p[2]
@@ -92,7 +82,16 @@ class Preprocessor(object):
         return peakS, popt
 
     @classmethod
-    def remove_energy(cls, t, S, ratio=0.1, max_peaks=-1, ptype="norm"):
+    def remove_energy(cls, t, S, energy_ratio=0.1, max_peaks=-1, ptype="norm"):
+        """Decrease input's energy by removing peaks.
+
+        Iteratively fits and removes peaks from provided signal.
+        Returns input without subtracted peaks and parameters of fitted
+        peaks, i.e. position, amplitude and width.
+
+        Use case for the method is to determine oscillation peaks in
+        provided Fourier spectrum.
+        """
 
         energy = matrix_norm(S)
         _S = S.copy()
@@ -101,18 +100,17 @@ class Preprocessor(object):
         while(True):
             _peakY, _param = cls._remove_peak(t, _S, ptype)
             _S[:] = _S - _peakY
+            # Trim negative part after peak removal
             _S[_S<0] = 0
 
-            #_param[1] = np.sum(_peakY)
             param.append(_param)
 
             new_energy = matrix_norm(_S)
-            r = new_energy/energy
-
-            cls.logger.debug("new_energy = {}, (r = {} )".format(new_energy, r))
+            current_ratio = new_energy/energy
+            cls.logger.debug("new_energy = {}, (r = {} )".format(new_energy, current_ratio))
 
             # Break if energy ratio is reached
-            if r <= ratio:
+            if current_ratio <= energy_ratio:
                 break
 
             # Break if reached maximum number of peaks
@@ -121,26 +119,37 @@ class Preprocessor(object):
 
         return _S, np.array(param)
 
-    def determine_params(self, t, S, ratio=0.1, ptype="norm", max_peaks=-1):
+    def determine_params(self, t, S, energy_ratio=0.1, max_peaks=-1, ptype="norm"):
+        """Determine oscillation parameters of time series.
+
+        Extracts parameters of most influential oscillations by converting
+        time series into Fourier spectrum and identifying the most pronounce
+        peaks. Number of identified oscillations depends on energy ratio threshold.
+        Oscillators are sorted in decreasing order.
+
+        Return
+        ------
+        param -- Parameters for identified oscillators in increasing frequency order.
+            Numpy array in shape (osc x 4), where fields are:
+            params[:, 0] -- mean frequencies
+            params[:, 1] -- amplitudes
+            params[:, 2] -- error bars
+            params[:, 3] -- initial phases
+        """
 
         freq = np.fft.fftfreq(t.size, t[1]-t[0])
-
         idx = np.r_[freq>=self.fMin] & np.r_[freq<self.fMax]
+        F = np.fft.fft(S)
 
-        freq = freq[idx]
-        F = np.fft.fft(S)[idx]
+        fourierS, param = self.remove_energy(freq[idx], np.abs(F[idx]),
+                                    energy_ratio=energy_ratio,
+                                    max_peaks=max_peaks,
+                                    ptype=ptype)
 
-        maF = np.abs(F)
-        fourierS, param = self.remove_energy(freq, maF, ratio=ratio, max_peaks=max_peaks, ptype=ptype)
-
-        param = np.array(param)
-        param = param[param[:,0].argsort()]
+        param = param[param[:,0].argsort()[::-1]]
         param = param.tolist()
 
-        for i in range(len(param)):
-
-            p = param[i]
-
+        for i, p in enumerate(param):
             # Extracting phase
             minIdx = np.argmin(np.abs(p[0]-freq))
             param[i] = np.append(p, np.angle(F[minIdx]))
@@ -150,21 +159,30 @@ class Preprocessor(object):
 
         return np.array(param)
 
-    def compute_prior(self, X, Y):
-        ratio = self.energy_ratio
-        self.param = self.determine_params(X, Y, ratio=ratio, ptype=self.ptype, max_peaks=self.max_osc)
-        self.param = np.array(self.param)
+    def compute_prior(self, t, S):
+        """Computes estimates for KurSL prior parameters.
 
-        self.logger.debug("Params: ")
-        for p in self.param: self.logger.debug(p)
+        Return
+        ------
+        theta -- Initial parameters in form of 2D Numpy array,
+                 where columns are (W, Y0, R, K_).
+                 Note that K_ matrix doesn't have (i,i) elements, as they are zero.
+
+        """
+        self.param = self.determine_params(t, S,
+                            energy_ratio=self.energy_ratio,
+                            ptype=self.ptype,
+                            max_peaks=self.max_osc)
+
+        self.logger.debug("Determined prior parameters: ")
+        for p in self.param:
+            self.logger.debug(p)
 
         if np.any(self.param[:,:2]<0):
-            self.logger.debug("*"*30)
-            self.logger.debug("\n SOMETHING IS WRONG !! \n")
-            self.logger.debug(" some parameters are estimated as  negative! ")
-            self.logger.debug(" we're making them positive! ")
-            self.logger.debug("*"*30 )
-            self.param = np.abs(self.param)
+            msg = "Something went weirdly wrong. Either frequency or amplitude " \
+                  "was estimated to be negative. What's the sense behind that?\n" \
+                  "Estimates:" + str(self.param)
+            raise AssertionError(msg)
 
         # There's no point in analysing
         if(self.param.shape[0]<2):
@@ -175,33 +193,19 @@ class Preprocessor(object):
 
         # Extract freq in decreasing order
         # WARNING! This is fine now, because we're not estimating 'k'
-        #          Otherwise: DON'T!
+        #          Otherwise: Swap at the same time rows and cols in K matrix.
         W_sort_idx = np.argsort(self.param[:,0])[::-1]
 
         W = self.param[W_sort_idx, 0]*6.28
         R = self.param[W_sort_idx, 1]
         Y0 = (self.param[W_sort_idx, -1]+2*np.pi)%(2*np.pi)
 
-        self.logger.debug('W: ' + str(W))
-        priorC = np.zeros(self.oscN*self.paramN)
-        priorC[:self.oscN] = W
-        priorC[self.oscN:2*self.oscN] = Y0
-        priorC[2*self.oscN:3*self.oscN] = R
+        # Until better idea pops, just start with no coupling
+        K = np.zeros((self.oscN, self.nH*(self.oscN-1)))
 
-        # Prior K
-        # TODO: Why does it have to be random? Let's try with zeros...
-        #K = (np.random.random((self.oscN, self.nH*(self.oscN-1)))-0.5)*5.
-        #kSum = np.sum(np.abs(K),axis=1)[:,None]
-        #idx = (kSum>W[:,None]).flatten()
-        #if np.any(idx): K[idx] *= 0.98*W[idx,None]/kSum[idx]
-        #priorC[3*self.oscN:] = K.T.flatten()
-
-
-        ####################################################
         ## Reconstructing signal
-        #self.theta_init = np.column_stack((W,Y0,R,K))
-        self.theta_init = priorC.reshape((-1, self.oscN)).T
-        self.logger.debug('priorC: ' + str(priorC))
+        self.theta_init = np.column_stack((W, Y0, R, K))
+        self.logger.debug('theta_init: ' + str(self.theta_init))
 
         return self.theta_init
 
@@ -316,7 +320,6 @@ if __name__ == "__main__":
         kSum = np.sum(np.abs(K),axis=1)[:,None]
         idx = (kSum>W[:,None]).flatten()
         if np.any(idx): K[idx] *= 0.98*W[idx,None]/kSum[idx]
-        #~ priorC[3*oscN:] = K.T.flatten()
 
         # Sorting params in reverse freq
         genParams = np.column_stack((W,Y0,R,K))
