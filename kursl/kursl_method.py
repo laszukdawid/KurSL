@@ -94,7 +94,7 @@ class KurslMethod(object):
         return y
 
     @staticmethod
-    def cost_Ln(, Y, n=2):
+    def cost_Ln(X, Y, n=2):
         """Metric in Ln space. Default is Hilbert (n=2)."""
 
         diff = X-Y

@@ -79,8 +79,6 @@ class KurSL(object):
     def __call__(self, t, P):
         # Assert conditions
         P = np.array(P)
-        assert P.ndim == 2
-        assert P.shape[0]>1
 
         # Extracting model parameters
         oscN, p = P.shape

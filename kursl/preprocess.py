@@ -155,7 +155,7 @@ class Preprocessor(object):
             param[i] = np.append(p, np.angle(F[minIdx]))
 
             # Scaling amplitude
-            param[i][1] = np.sqrt(param[i][1]/len(fourierS))
+            param[i][1] = param[i][1]/len(fourierS)
 
         return np.array(param)
 
@@ -241,8 +241,9 @@ if __name__ == "__main__":
 
     ########################################
     options = dict(ptype=ptype, signalType=signalType)
-    options['energy_ratio'] = 0.01
-    preprocessor = Preprocessor(nH=nH, max_osc=max_osc, **options)
+    energy_ratio = 0.01
+    preprocessor = Preprocessor(nH=nH, max_osc=max_osc,
+                            energy_ratio=energy_ratio)
 
     ###################################################
     ##   Generating KurSL type signal

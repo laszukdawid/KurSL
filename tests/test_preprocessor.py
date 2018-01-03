@@ -287,22 +287,34 @@ class TestPreprocessor(unittest.TestCase):
 
         preprocessor = Preprocessor()
         params = preprocessor.compute_prior(t, S)
+        params[:, 1] = (params[:,1] + pi2) % pi2
+
         # Testing for number
         self.assertEqual(params.shape, (2,4), "Two oscillators (W, ph, A, K)")
-        # Testing for frequency
-        self.assertTrue(abs(params[0,0]-5*pi2)<0.001, "First oscillator is with 5 Hz")
-        self.assertTrue(abs(params[1,0]-2*pi2)<0.001, "Second oscillator is with 2 Hz")
-        # Testing for phase
-        self.assertTrue(abs(params[0,2]-0)<0.001, "First oscillator has phase 1")
-        self.assertTrue(abs(params[1,2]-1)<0.001, "Second oscillator has phase 0")
-        # Testing for amplitude
-        self.assertTrue(abs(params[0,3]-2)<0.001, "First oscillator has ampl 1.1")
-        self.assertTrue(abs(params[1,3]-1.1)<0.001, "Second oscillator has amp 2")
-        # Testing for coupling
-        self.assertEqual(params[0,4], 0, "First->Second coupling should be 0")
-        self.assertEqual(params[1,4], 0, "Second->First coupling should be 0")
 
-    def test_compute_prior_default(self):
+        # Testing for frequency
+        self.assertTrue(abs(params[0,0]-5*pi2)<0.05,
+            "Expected {} rad/s, Got {} [rad/s]".format(5*pi2, params[0,0]))
+        self.assertTrue(abs(params[1,0]-2*pi2)<0.05,
+            "Expected {} rad/s, Got {} [rad/s]".format(2*pi2, params[1,0]))
+
+        # Testing for phase
+        self.assertTrue(abs(params[0,1]-1)<0.001,
+                "Expected phase {}, Got {}.".format(1, params[0,1]))
+        self.assertTrue(abs(params[1,1]-0)<0.001,
+                "Expected phase {}, Got {}.".format(0, params[1,1]))
+
+        # Testing for amplitude
+        self.assertTrue(abs(params[0,2]-1.1)<0.1,
+                "Expected amp {}, Got {}.".format(1.1, params[0,2]))
+        self.assertTrue(abs(params[1,2]-2)<0.1,
+                "Expected amp {}, Got {}.".format(2, params[1,2]))
+
+        # Testing for coupling
+        self.assertEqual(params[0,3], 0, "First->Second coupling should be 0")
+        self.assertEqual(params[1,3], 0, "Second->First coupling should be 0")
+
+    def test_compute_prior_custom_nH(self):
         "Currently almost copy of test_determine_params_*"
         t = np.arange(0, 5, 0.001)
         c1 = self._cos(t, 2, 2, 0)
@@ -373,6 +385,6 @@ class TestPreprocessor(unittest.TestCase):
         max_osc = 1
         preprocessor = Preprocessor(max_osc=max_osc)
         with self.assertRaises(Exception) as context:
-            params = preprocessor.compute_prior(t, S)
+            preprocessor.compute_prior(t, S)
 
         self.assertTrue("Single oscillator detected" in str(context.exception))
