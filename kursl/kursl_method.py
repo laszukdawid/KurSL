@@ -7,17 +7,17 @@
 # Feel free to contact for any information.
 from __future__ import division, print_function
 
-import matplotlib
-matplotlib.use("Agg")
+#import matplotlib
+#matplotlib.use("Agg")
 
 import logging
 import numpy as np
 import scipy.optimize as opt
 import os
 
-from kursl import KurSL
-from kursl import KurslMCMC
-from kursl import Preprocessor
+from .kursl_model import KurSL
+from .mcmc import KurslMCMC
+from .preprocess import Preprocessor
 
 ########################################
 ## Declaring Class
@@ -28,10 +28,11 @@ class KurslMethod(object):
    # _allowed_options = ["ptype", "signalType"]
     _peak_types = ["triang", "norm", "lorentz"]
 
-    def __init__(self, nH, maxOsc=-1, *args, **kwargs):
+    def __init__(self, nH=1, max_osc=-1, *args, **kwargs):
 
+        # TODO: attribute that changes size of theta
         self.nH = nH
-        self.maxOsc = maxOsc
+        self.max_osc = max_osc
         self.model = KurSL()
         self.model.nH = nH
 
@@ -40,18 +41,17 @@ class KurslMethod(object):
 
         self.energy_ratio = 0.1
 
-        self.fMin = 0
-        self.fMax = 1e10
+        self.f_min = 0
+        self.f_max = 1e10
 
         # MCMC variables
         self.nwalkers = 20
         self.nruns = 50
 
-        self.remove_trend = 'cubic' # 'mean', 'cubic'
-        self.MATCH_THRESHOLD = 0.01
-
         self.PREOPTIMIZE = 0
         self.POSTOPTIMIZE = 0
+        self.opt_maxiter = 100
+        self.opt_verbose = False
 
         self.theta_init = None
         self.samples = None
@@ -68,53 +68,55 @@ class KurslMethod(object):
                 self.logger.debug("Setting: self.{} = {}".format(key, val))
                 self.__dict__[key] = val
 
-
     def compute_prior(self, t, S):
-        ratio = self.energy_ratio
-        preprocessor = Preprocessor(maxOsc=self.maxOsc, nH=self.nH, ratio=ratio)
+        preprocessor = Preprocessor(max_osc=self.max_osc,
+                            nH=self.nH,
+                            energy_ratio=self.energy_ratio,
+                            )
 
         self.theta_init = preprocessor.compute_prior(t, S)
         self.oscN, self.paramN = self.theta_init.shape
         self.logger.debug('priorC: ' + str(self.theta_init))
 
-        # Save initial parameters
-        np.savetxt('initParam.txt', self.theta_init.T, delimiter=' & ', fmt='%7.4g')
+        ## Save initial parameters
+        #np.savetxt('initParam.txt', self.theta_init.T, delimiter=' & ', fmt='%7.4g')
 
     def set_prior(self, theta):
-        self.theta_init = theta
-
-    def detrend(self, y):
-        if self.remove_trend == "mean":
-            y -= np.mean(y)
-        elif self.remove_trend == "cubic":
-            fitCubic = lambda y,x: np.poly1d(np.polyfit(x,y,3))(x)
-            y -= fitCubic(y,np.arange(len(y)))
+        """Sets prior value for theta parameter."""
+        #TODO: This could be probably replaced with @property
+        theta = np.array(theta)
+        if self.theta_init is None:
+            oscN, paramN = theta.shape
+            expected_shape = (oscN, 3+self.nH*(oscN-1))
         else:
-            raise ValueError("Incorrect detrend value")
-        return y
+            expected_shape = self.theta_init.shape
+
+        if expected_shape and (theta.shape != expected_shape):
+            raise ValueError("Attempting to update initial theta "
+                    "with incorrect shape. Got shape {}, whereas "
+                    "shape {} is expected".format(theta.shape, expected_shape))
+
+        self.theta_init = theta
+        self.oscN = theta.shape[0]
+        self.paramN = theta.shape[1]
+        self.nH = int((self.paramN-3)/(self.oscN-1))
 
     @staticmethod
-    def cost_Ln(X, Y, n=2):
-        """Metric in Ln space. Default is Hilbert (n=2)."""
-
-        diff = X-Y
-
-        if n == 1:
-            cost = np.sum(np.abs(diff))
-        elif n == 2:
-            cost = np.sqrt(np.sum(diff*diff))
-        elif n == 0:
-            cost = np.max(np.abs(diff))
+    def detrend(S, remove_type="mean"):
+        if remove_type == "mean":
+            S -= np.mean(S)
+        elif remove_type == "cubic":
+            fitCubic = lambda S, x: np.poly1d(np.polyfit(x, S, 3))(x)
+            S -= fitCubic(S, np.arange(len(S)))
         else:
-            abs_diff = np.abs(diff)
-            power_n = np.power(abs_diff, n)
-            cost = np.power(np.sum(power_n), 1./n)
-
-        return cost
+            raise ValueError("Incorrect detrend value")
+        return S
 
     @staticmethod
     def cost_lnprob(X, Y):
-        """Calculates neg log value. The bigger value the better."""
+        """Calculates negative log likelikehood assuming that difference
+        between processes is Gaussian process. Such assumption simplifies
+        calculation to like = -0.5*sum(abs(X-Y))."""
         diff = X-Y
         dEnergy = diff*diff
         like = -0.5*np.sum(dEnergy)
@@ -126,20 +128,23 @@ class KurslMethod(object):
         """
         _, _, s_rec = self.model(t, params)
         s_rec_flat = np.sum(s_rec, axis=0)
-
+        diff = s_rec_flat - Y_target[:-1]
         cost = np.abs(self.cost_lnprob(s_rec_flat, Y_target[:-1]))
-
         return cost
 
-    def run_optimize(self, t, S, theta_init=None, maxiter=100, verbose=False):
-        # Get initial params
+    def run_optimize(self, t, S, theta_init=None, maxiter=None, verbose=False):
+        """Performs optmization using SciPy default method (L-BFGS)"""
         if theta_init is None:
+            if self.theta_init is None:
+                raise ValueError("No prior parameters were assigned.")
+            # Local assigment
             theta_init = self.theta_init
 
-        options = {'maxiter': maxiter, 'disp': verbose}
+        options = {'maxiter': maxiter if maxiter else self.opt_maxiter,
+                    'disp': verbose or self.opt_verbose}
 
         # Define cost function
-        cost = lambda p: self.cost_function(t, p, S)
+        cost = lambda p: self.cost_function(t, p.reshape(theta_init.shape), S)
 
         # Construct optimizer
         optimal_result = opt.minimize(cost, theta_init, options=options)
@@ -148,14 +153,32 @@ class KurslMethod(object):
         best_param = optimal_result['x']
 
         # return optmized results
-        return best_param
+        return best_param.reshape(theta_init.shape)
 
     def run_mcmc(self, t, S, theta_init=None):
+        """Use MCMC to fit KurSL model to signal S.
+
+        Performs MCMC to search parameter space for a set that fits
+        KurSL model the best to provided data S.
+
+        Input
+        -----
+        t -- time array
+        S -- time series
+        theta_init (default: None) -- initial starting parameters
+        """
         if theta_init is None:
+            if self.theta_init is None:
+                raise ValueError("No prior parameters were assigned.")
+            # Local assigment
             theta_init = self.theta_init
 
+        theta_init = theta_init.astype(np.float64)
+
         # Setting number of Walkers
-        nwalkers = max(self.nwalkers, int(1.1*self.theta_init.size)*2)
+        nwalkers = max(self.nwalkers, theta_init.size*2)
+        self.logger.debug("nwalkers: " + str(nwalkers))
+        self.logger.debug("nruns: " + str(self.nruns))
 
         # Length of target must be t.size-1 because we lose one sample
         # whilst simulating
@@ -164,20 +187,17 @@ class KurslMethod(object):
         # Detrending
         S = self.detrend(S)
 
-        self.logger.debug("nwalkers: " + str(nwalkers))
-        self.logger.debug("nruns: " + str(self.nruns))
-
         # Saving results
         saveName = 'KurSL_results'
         if self.name_suffix: saveName += '-'+self.name_suffix
         np.savez(saveName, sInput=S, x=t, nH=self.nH)
 
         # Set up model params
-        self.model.oscN = self.theta_init.shape[0]
+        self.model.oscN = theta_init.shape[0]
         self.model.nH = self.nH
 
+        # Define MCMC method
         mcmc = KurslMCMC(theta_init, nwalkers=nwalkers, nH=self.nH)
-        mcmc.set_threshold(self.MATCH_THRESHOLD)
         mcmc.set_model(self.model)
         mcmc.set_sampler(t, S)
         mcmc.run(niter=self.nruns)
@@ -188,11 +208,31 @@ class KurslMethod(object):
 
         sDim = self.samples.shape[1]
         best_idx = np.argmax(self.lnprob)
-        best_param = self.samples[int(best_idx/sDim), best_idx%sDim, :]
+        theta = self.samples[int(best_idx/sDim), best_idx%sDim, :]
 
-        return best_param
+        return theta.reshape(theta_init.shape)
 
-    def run(self, t, S):
+    def run(self, t, S, theta_init=None):
+        """Perform KurSL model fitting to data S.
+
+        Fit can be performed as a many step optimization.
+        Fitting is done using MCMC, although depending on
+        set flags pre- and post-optimization can be added
+        using L-BFGS.
+
+        Input
+        -----
+        t -- time array
+        S -- time series
+
+        Returns
+        -------
+        theta -- Parameters that best fit the KurSL model under
+                 provided conditions. Columns denote in increasing
+                 order: intrisic frequency W, initial phase P, initial
+                 amplitude R, and coupling factors K matrices (order),
+                 i.e. theta = (W, P, R, K1=(K_...), K2=(K_...))
+        """
 
         # Detrending
         size = min(t.size, S.size)
@@ -200,8 +240,12 @@ class KurslMethod(object):
         S = S[:size]
         S[:] = self.detrend(S)
 
-        if self.theta_init is None or self.oscN is None:
+        # Initial parameters
+        if theta_init is None:
             self.compute_prior(t, S)
+            theta_init = self.theta_init
+        else:
+            self.set_prior(theta_init)
 
         ####################################################
         ## Data presentation
@@ -211,32 +255,28 @@ class KurslMethod(object):
         self.logger.debug("paramN: {} (min walkers should be 2*paramN)".format(self.oscN*(3+self.nH*(self.oscN-1))))
 
         # Initial parameter is our best bet
-        best_param = self.theta_init
+        theta = self.theta_init
 
         if self.PREOPTIMIZE:
-            self.logger.debug("Running preoptimization. Initial paramters:\n" + str(best_param))
-            self.logger.debug("Cost: " + str(self.cost_function(t, best_param, S)))
-            best_param = self.run_optimize(t, S, theta_init=best_params, verbose=True)
-            best_param = best_param.reshape((self.oscN, -1))
-            self.theta_init = best_param
+            self.logger.debug("Running preoptimization. Theta:\n" + str(theta))
+            self.logger.debug("Cost: " + str(self.cost_function(t, theta, S)))
+            theta = self.run_optimize(t, S, theta_init=theta)
 
         # Run MCMC
-        self.logger.debug("Running MCMC. Initial paramters:\n" + str(best_param))
-        self.logger.debug("Cost: " + str(self.cost_function(t, best_param, S)))
-        best_param = self.run_mcmc(t, S, theta_init=best_param)
-        best_param = best_param.reshape((self.oscN, -1))
+        self.logger.debug("Running MCMC. Theta:\n" + str(theta))
+        self.logger.debug("Cost: " + str(self.cost_function(t, theta, S)))
+        theta = self.run_mcmc(t, S, theta_init=theta)
 
         if self.POSTOPTIMIZE:
-            self.logger.debug("Running MCMC. Initial paramters:\n" + str(best_param))
-            self.logger.debug("Cost: " + str(self.cost_function(t, best_param, S)))
-            best_param = self.run_optimize(t, S, theta_init=best_param, verbose=True)
-            best_param = best_param.reshape((self.oscN,-1))
-            self.theta_init = best_param
+            self.logger.debug("Running postoptimization. Theta:\n" + str(theta))
+            self.logger.debug("Cost: " + str(self.cost_function(t, theta, S)))
+            theta = self.run_optimize(t, S, theta_init=theta)
 
-        self.logger.debug("Final results" + str(best_param))
-        self.logger.debug("Cost: " + str(self.cost_function(t, best_param, S)))
+        self.theta_init = theta
+        self.logger.debug("Final results" + str(theta))
+        self.logger.debug("Cost: " + str(self.cost_function(t, theta, S)))
 
-        return best_param
+        return theta
 
 ######################################
 ##  MAIN PROGRAMME
@@ -268,16 +308,16 @@ if __name__ == "__main__":
     tMax = 1 # Length of segment
     N = int((tMax-tMin)*fs)
 
-    fMin, fMax = 0, 40
+    f_min, f_max = 0, 40
     saveName = "results-{}".format(signalType)
 
     ########################################
     ## Params for kursl/synth
     nH = 1
-    maxOsc = 2
+    max_osc = 2
 
     genH = nH
-    oscN = maxOsc
+    oscN = max_osc
 
     ########################################
     ## Correct setting validation
@@ -287,13 +327,13 @@ if __name__ == "__main__":
     if not (tMin<tMax):
         raise ValueError("Unstructered time array")
 
-    if not (fMin<fMax):
-        raise ValueError("fMin < fMax")
+    if not (f_min<f_max):
+        raise ValueError("f_min < f_max")
 
     ########################################
     options = dict(ptype=ptype, signalType=signalType)
     options['energy_ratio'] = 0.01
-    kursl = KurslMethod(nH=nH, maxOsc=maxOsc, **options)
+    kursl = KurslMethod(nH=nH, max_osc=max_osc, **options)
 
     ###################################################
     ##   Generating KurSL type signal
@@ -447,7 +487,7 @@ if __name__ == "__main__":
         plt.figure()
 
         freq = np.fft.fftfreq(len(T), dt)
-        idx = np.r_[freq>=fMin] & np.r_[freq<=fMax]
+        idx = np.r_[freq>=f_min] & np.r_[freq<=f_max]
 
         freq = freq[idx]
         F = np.abs(np.fft.fft(sInput)[idx])
@@ -456,7 +496,6 @@ if __name__ == "__main__":
         for p in peaks: plt.axvline(p, color='red', linestyle='dashed')
         plt.savefig('sInput_FD')
         plt.clf()
-
 
     nInput = sInput.shape[0]
 

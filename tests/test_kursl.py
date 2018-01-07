@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 
-from kursl import KurSL
+from kursl.kursl_model import KurSL
 
 class KurslGeneralTest(unittest.TestCase):
 

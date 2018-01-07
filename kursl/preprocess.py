@@ -7,9 +7,6 @@
 # Feel free to contact for any information.
 from __future__ import division, print_function
 
-import matplotlib
-matplotlib.use("Agg")
-
 import logging
 import numpy as np
 import scipy.optimize as opt
@@ -24,14 +21,14 @@ class Preprocessor(object):
 
     _peak_types = ["triang", "norm", "lorentz"]
 
-    def __init__(self, max_osc=-1, nH=None, energy_ratio=None):
+    def __init__(self, max_osc=-1, nH=1, energy_ratio=0.1):
 
-        self.nH = nH if nH else 1
+        self.nH = nH
         self.max_osc = max_osc
 
         self.ptype = "norm"
 
-        self.energy_ratio = energy_ratio if energy_ratio else 0.1
+        self.energy_ratio = energy_ratio
 
         self.fMin = 0
         self.fMax = 1e10
@@ -334,7 +331,6 @@ if __name__ == "__main__":
 
         saveName = 'genParam-%s'%(signalType)
         np.savetxt(saveName+'.txt', genParams, fmt='%.6e')
-        #plt.save(saveName, genParams)
 
         kursl.oscN = oscN
         kursl.nH = nH
@@ -352,6 +348,8 @@ if __name__ == "__main__":
     ## Determining num of osc based on Fourier energy
     sInput = np.sum(sInput, axis=0)
     if PLOT or PLOT_SPECTRUM:
+        import matplotlib
+        matplotlib.use("Agg")
         import pylab as plt
 
     if PLOT:

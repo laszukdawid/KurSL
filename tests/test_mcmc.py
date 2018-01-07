@@ -1,6 +1,6 @@
 import unittest
 
-from kursl import KurslMCMC
+from kursl.kursl_method import KurslMCMC
 
 class TestMCMC(unittest.TestCase):
 

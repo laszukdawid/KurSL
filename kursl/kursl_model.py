@@ -115,7 +115,8 @@ class KurSL(object):
         dPhi0 = dPhi[:,0][:,None]
 
         amp = np.sqrt(dPhi0/dPhi)
-        amp *= (R/np.max(amp, axis=1))[:,None]
+        #amp *= R[:,None]
+        amp[:] = amp*(R/np.max(amp, axis=1))[:,None]
         P = np.cos(phase)
         S = amp*P
 

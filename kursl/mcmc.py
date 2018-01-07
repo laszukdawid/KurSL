@@ -4,8 +4,6 @@
 # Author: Dawid Laszuk
 # Contact: laszukdawid@gmail.com
 #
-# Last update: 02/12/2016
-#
 # Feel free to contact for any information.
 from __future__ import division, print_function
 
@@ -14,8 +12,8 @@ import logging
 import numpy as np
 import time, datetime
 
-from kursl import KurSL
-from kursl import ModelWrapper
+from .kursl_model import KurSL
+from .model import ModelWrapper
 
 #import warnings
 #warnings.simplefilter('always', DeprecationWarning)
@@ -24,13 +22,16 @@ class KurslMCMC(object):
 
     logger = logging.getLogger(__name__)
 
-    def __init__(self, theta_init, theta_std=None, nH=1, nwalkers=None, nruns=None, **kwargs):
+    def __init__(self, theta_init, theta_std=None, nH=1, nwalkers=None, nruns=100, **kwargs):
 
         # Setting paramters
         self.theta_init = theta_init
         self.ndim = theta_init.size
-        self.nwalkers = nwalkers if nwalkers else int(1.1*theta_init.size)*2
-        self.niter = nruns if nruns else 100
+        self.nwalkers = nwalkers if nwalkers else theta_init.size*2
+        self.niter = nruns
+
+        # Number of threads used to compute
+        self.threads = 1
 
         # Inner flag options
         self.skip_init_steps = 0
@@ -122,7 +123,7 @@ class KurslMCMC(object):
         self.sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                     self.lnProb,
                                     args=(x, y, self.model),
-                                    threads=4)
+                                    threads=self.threads)
 
     def run(self, pos=None, niter=None):
         """ Runs MCMC algorithm. It starts with positions pos

@@ -2,7 +2,7 @@ import logging
 import numpy as np
 import unittest
 
-from kursl import Preprocessor
+from kursl.preprocess import Preprocessor
 
 class TestPreprocessor(unittest.TestCase):
 
