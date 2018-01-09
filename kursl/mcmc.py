@@ -22,13 +22,13 @@ class KurslMCMC(object):
 
     logger = logging.getLogger(__name__)
 
-    def __init__(self, theta_init, theta_std=None, nH=1, nwalkers=None, nruns=100, **kwargs):
+    def __init__(self, theta_init, theta_std=None, nwalkers=None, niter=100, **kwargs):
 
         # Setting paramters
         self.theta_init = theta_init
         self.ndim = theta_init.size
-        self.nwalkers = nwalkers if nwalkers else theta_init.size*2
-        self.niter = nruns
+        self.nwalkers = nwalkers if nwalkers else self.ndim*2
+        self.niter = niter
 
         # Number of threads used to compute
         self.threads = 1
@@ -41,14 +41,15 @@ class KurslMCMC(object):
         self.SAVE_INIT_POS = True
 
         # Number of harmonics
-        self.nH = nH
         self.oscN = theta_init.shape[0]
-        self.perN = theta_init.shape[1]
+        self.paramN = theta_init.shape[1]
+        self.nH = int((self.paramN-3)/(self.oscN-1))
 
         # Setting up KurSL model, which is default (only?)
         kursl = KurSL(theta_init)
         self.set_model(kursl)
 
+        self.sampler = None
         self._init_walkers(theta_init, theta_std)
 
     def _init_walkers(self, theta_init, theta_std):
@@ -57,15 +58,19 @@ class KurslMCMC(object):
         # Setting std for walkers
         if theta_std is None:
             theta_std = np.zeros(theta_init.shape)
-            theta_std[:, 0] = 0.5*np.log(theta_init[:,0]+1) # Frequency
-            theta_std[:, 1] = 1.0 # Phase
-            theta_std[:, 2] = np.sqrt(np.abs(theta_init[:,2])) # Amp
-            theta_std[:, 3:] = 5. # k couplings
+            theta_std[:,0] = 0.5*np.log(theta_init[:,0]+1) # Frequency
+            theta_std[:,1] = 1.0 # Phase
+            theta_std[:,2] = np.sqrt(np.abs(theta_init[:,2])) # Amp
+            theta_std[:,3:] = 5. # k couplings
 
             # Variance cannot be negative
             theta_std[theta_std<=0] = 1
+        else:
+            if theta_init.shape != theta_std.shape:
+                raise ValueError("Incorrect shape of theta_std. Expected {} (theta), "
+                    "but received {}".format(theta_init.shape, theta_std.shape))
 
-        self.logger.debug('theta_std: \n' + str(theta_std))
+        self.logger.debug('theta_std:\n' + str(theta_std))
         theta_std = theta_std.flatten()
 
         theta_flat = theta_init.flatten()
@@ -74,32 +79,32 @@ class KurslMCMC(object):
         # Keep first `keep` paramters and don't add any noise
         keep = 1
         for param in range(self.ndim):
-            self.init_pos[keep:, param] += np.random.normal(0, 0.5*theta_std[param], self.nwalkers-keep)
+            self.init_pos[keep:,param] += np.random.normal(0, 0.5*theta_std[param], self.nwalkers-keep)
 
         # Making amplitude positive
         # W0, y00, R0, K... , W1, y01, ...
         idx = np.arange(self.oscN)*(self.nH*(self.oscN-1)+3) + 2
-        self.init_pos[:, idx] = np.abs(self.init_pos[:, idx])
+        self.init_pos[:,idx] = np.abs(self.init_pos[:,idx])
 
         # Square root in amplitude part cannot be negative,
         # i.e. sum of all 'k' has to be smaller than 'w'
         for osc in range(self.oscN):
-            W = self.init_pos[:,osc*self.perN]
-            K = self.init_pos[:,osc*self.perN+3:]
+            W = self.init_pos[:,osc*self.paramN]
+            K = self.init_pos[:,osc*self.paramN+3:(osc+1)*self.paramN]
             kSum = np.sum(np.abs(K),axis=1)
-            idx = kSum>W
+            idx = kSum>=W
             if np.any(idx):
                 R = 0.98*W[idx]/kSum[idx]
-                self.init_pos[idx, osc*self.perN+3:] *= R[:,None]
+                self.init_pos[idx,osc*self.paramN+3:(osc+1)*self.paramN] *= R[:,None]
 
         # If needed, save initial position
         if self.SAVE_INIT_POS:
             np.save('init_pos', self.init_pos)
 
-        self.set_estimates(theta_init)
+        #self.set_estimates(theta_init)
 
     @staticmethod
-    def negLog(x):
+    def neg_log(x):
         return -np.sum(np.log(x))
 
     def set_model(self, model):
@@ -114,29 +119,40 @@ class KurslMCMC(object):
         """ Setting up energy threshold. If ratio of reconstructed signal's
             to input signal's energy is less or equal then procedure is stopped.
         """
+        self.THRESHOLD = threshold
         self.model.THRESHOLD = threshold
 
-    def set_sampler(self, x, y):
-        y_detrend = y-y.mean()
-        self.s_var = np.sum(y_detrend*y_detrend)
+    def set_sampler(self, t, S):
+        """Sets sampler for MCMC to fit KurSL model to S(t)."""
+        S = S[:t.size-1]
+        S_detrend = S-S.mean()
+        self.model.s_var = np.sum(S_detrend*S_detrend)
 
         self.sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
-                                    self.lnProb,
-                                    args=(x, y, self.model),
-                                    threads=self.threads)
+                                    self.lnprob,
+                                    args=(t, S, self.model),
+                                    threads=self.threads,
+                                    )
 
     def run(self, pos=None, niter=None):
         """ Runs MCMC algorithm. It starts with positions pos
             and moves each walker over N iterations.
         """
-        niter = niter if niter else self.niter
-        pos = pos if pos else self.init_pos
-
         if self.model is None:
-            self.logger.error("Model not selected!")
             raise AttributeError("Model not selected")
+        if self.sampler is None:
+            raise AttributeError("Sampler not defined. Please run `set_sampler` first.")
 
-        posArr, lnprobArr = np.zeros((niter,)+pos.shape), np.zeros((niter, pos.shape[0]))
+        niter = niter if niter is not None else self.niter
+        pos = pos if pos is not None else self.init_pos
+
+        # Expected `pos` to be in (nwalkers, theta_init.size) shape
+        if pos is not None and pos.shape != self.init_pos.shape:
+            raise ValueError("Expected pos.shape to be {}, "
+                    "but received {}.".format(self.init_pos.shape, pos.shape))
+
+        pos_arr = np.zeros((niter,)+pos.shape)
+        lnprob_arr = np.zeros((niter, pos.shape[0]))
 
         measure_time0 = time.time()
         self.logger.debug('pos.shape: ' + str(pos.shape))
@@ -144,42 +160,33 @@ class KurslMCMC(object):
                                         iterations=niter,
                                         storechain=True)):
 
-            posArr[n] = np.array(results[0])
-            lnprobArr[n] = np.array(results[1])
+            pos_arr[n] = np.array(results[0])
+            lnprob_arr[n] = np.array(results[1])
 
             if n % self.save_iter == 0:
                 measure_time = time.time()
                 dt = measure_time - measure_time0
-                msg = datetime.datetime.now().strftime('%H:%M:%S')
-                msg += " | iteration: {:3}/{:3}  -- time {:10.4f}s".format(n, niter, dt)
-                msg += " -- best {:10.2f}".format(np.max(lnprobArr[:n+1]))
-                self.logger.info(msg)
-
-                np.save('pos', posArr)
-                np.save('lnprob', lnprobArr)
+                self.logger.debug(datetime.datetime.now().strftime('%H:%M:%S') + \
+                    " | iteration: {:3}/{:3}  -- time {:10.4f}s  -- best {:10.2f}"
+                    .format(n, niter, dt, np.max(lnprob_arr[:n+1])))
+                np.save('pos', pos_arr)
+                np.save('lnprob', lnprob_arr)
 
                 measure_time0 = time.time()
 
             if self.model.THRESHOLD_OBTAINED:
                 measure_time = time.time()
                 dt = measure_time - measure_time0
-                self.logger.info("iteration: {:3}/{:3}  -- time {:10.4f}s".format(n, niter, dt))
-                self.logger.info("ENERGY THRESHOLD OBTAINED. Halting computation")
+                self.logger.debug("iteration: {:3}/{:3}  -- time {:10.4f}s\n"
+                    "ENERGY THRESHOLD OBTAINED. Halting computation".format(n, niter, dt))
                 break
 
-            if np.max(lnprobArr[:n+1])>0:
-                measure_time = time.time()
-                dt = measure_time - measure_time0
-                self.logger.info("iteration: {:3}/{:3}  -- time {:10.4f}s".format(n, niter, dt))
-                self.logger.info("Extremely small likelihood obtained. Halting computation")
-                break
-
-        posArr = posArr[:n+1]
-        lnprobArr = lnprobArr[:n+1]
-        np.save('pos', posArr)
-        np.save('lnprob', lnprobArr)
-        self.chain = posArr
-        self.lnprobability = lnprobArr
+        pos_arr = pos_arr[:n+1]
+        lnprob_arr = lnprob_arr[:n+1]
+        np.save('pos', pos_arr)
+        np.save('lnprob', lnprob_arr)
+        self.chain = pos_arr
+        self.lnprobability = lnprob_arr
 
         # Whatever the outcome, clear flag
         self.model.THRESHOLD_OBTAINED = False
@@ -188,31 +195,31 @@ class KurslMCMC(object):
         return self.chain[:, self.skip_init_steps:,:]
 
     def get_lnprob(self):
-        #~ return self.sampler.lnprobability[:, self.skip_init_steps:]
         return self.lnprobability[:, self.skip_init_steps:]
 
-    def set_estimates(self, theta):
-        _theta = theta.reshape((self.oscN,-1))
+    def get_theta(self):
+        "Returns best estimate for KurSL"
+        if not self._theta_computed():
+            raise AttributeError("Parameter 'theta' not yet computed. "
+                    "Please run model first with .run().")
 
-        # Prob dist for freq
-        self.wMean = _theta[:,0]
-        self.wStd = np.sqrt(np.abs(self.wMean))*0.1
+        idx = np.argmax(self.get_lnprob())
+        samples = self.get_samples()
+        theta = samples[int(idx/self.nwalkers), idx%self.nwalkers, :]
+        return theta.reshape((self.oscN, self.paramN))
 
-        # Prob dist for kCoupling
-        self.kMean = _theta[:, 3:]
-        self.kStd = np.sqrt(np.abs(self.kMean))
-
-        self.logger.debug("self.wMean: " + str(self.wMean))
-        self.logger.debug("self.wStd:  " + str(self.wStd))
+    def _theta_computed(self):
+        "Check whether MCMC returned results"
+        return hasattr(self, "lnprobability")
 
     @staticmethod
-    def lnLikelihood(theta, x, y, model):
+    def lnlikelihood(theta, t, S, model):
         """ Logarithm of likelihood function.
             Related to the probability of parameters given the data.
 
             Theta is matrix of parameters in form of:
-            Th = [ W Ph R K] , dim(Th) = N(3 + h(N-1))
-            where: W - Nx1, Ph = Nx1, R = Nx1, K - hxNx(N-1)
+            Th = [W Ph R K] , dim(Th) = N(3 + h(N-1))
+            where: W = Nx1, Ph = Nx1, R = Nx1, K = hxNx(N-1)
         """
 
         # Determing value of N
@@ -221,8 +228,8 @@ class KurslMCMC(object):
         _theta = theta.reshape((model.oscN,-1))
 
         # Calculating
-        _, _, S = model(x, _theta)
-        d = y - np.sum(S, axis=0)
+        _, _, S_rec = model(t, _theta)
+        d = S - np.sum(S_rec, axis=0)
 
         d_energy = np.sum(d*d)
         if d_energy/model.s_var < model.THRESHOLD:
@@ -232,12 +239,12 @@ class KurslMCMC(object):
         return like
 
     @staticmethod
-    def lnPrior(theta, model):
+    def lnprior(theta, model):
         """ Logarithm of parameter's a priori probability function.
 
             Theta is matrix of parameters in form of:
 
-            Th = [ W K Ph R] , dim(Th) = N x (N+2)
+            Th = [W K Ph R] , dim(Th) = N x (N+2)
             where: W - Nx1, K - Nx(N-1), Ph = Nx1, R = Nx1
         """
 
@@ -253,8 +260,6 @@ class KurslMCMC(object):
         # Amplitude has udist_nity probability in [0, MAX_R]
         if np.any(R<=model.MIN_R) or np.any(R>model.MAX_R):
             return -np.inf
-        else:
-            likeR = model.dist_R(R)
 
         ## Freq has unity probability in [0, MAX_W]
         if np.any(W<=model.MIN_W) or np.any(W>model.MAX_W):
@@ -265,33 +270,29 @@ class KurslMCMC(object):
         if np.any(W - np.sum(np.abs(K), axis=1) <= 0):
             return -np.inf
 
-        # Sum of all log could be changed !
+        likeR = model.dist_R(R)
         likeW = model.dist_W(W)
-
-        # Phase probability:
         likePh = model.dist_ph(Ph)
-
-        # K coupling prob --
         likeK = model.dist_K(K)
 
         # Total likelihood is a sum of all likelihoods
-        #~ like = negLog(likeW)  + negLog(likeA) + negLog(likeK) + negLog(likePh)
+        #~ like = neg_log(likeW)  + neg_log(likeA) + neg_log(likeK) + neg_log(likePh)
         like = likeW + likePh + likeR + likeK
 
         return like
 
     @classmethod
-    def lnProb(cls, theta, x, y, model):
-        """ Log probability of obtaining y(x) data
+    def lnprob(cls, theta, t, S, model):
+        """ Log probability of obtaining S(t) data
             given parameters theta. According to Bayesian
             theorem it is
             ln P(Y|T) = ln P(T) + ln P(T|Y) - ln P(Y)
         """
 
         # Calculate prior of theta
-        lp = cls.lnPrior(theta, model)
+        lp = cls.lnprior(theta, model)
         if not np.isfinite(lp): return -np.inf
-        val = lp + cls.lnLikelihood(theta, x, y, model)
+        val = lp + cls.lnlikelihood(theta, t, S, model)
         return val
 
 # End of Class
@@ -359,11 +360,10 @@ if __name__ == "__main__":
     # Applying MCMC
     theta_init = P + noise
 
-    x = t
-    y = np.sum(sInput, axis=0)+np.random.random(t.size-1)
+    S = np.sum(sInput, axis=0)+np.random.random(t.size-1)
 
-    mcmc = KurslMCMC(theta_init, nH=nH, nwalkers=20, nruns=100)
-    mcmc.set_sampler(x,y)
+    mcmc = KurslMCMC(theta_init, nH=nH, nwalkers=20, niter=100)
+    mcmc.set_sampler(t,S)
     mcmc.run()
 
     # Plot comparison between plots

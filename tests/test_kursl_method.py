@@ -18,7 +18,7 @@ class TestKurslMethod(unittest.TestCase):
         self.assertEqual(kursl.f_max, 1e10)
 
         self.assertEqual(kursl.nwalkers, 20)
-        self.assertEqual(kursl.nruns, 50)
+        self.assertEqual(kursl.niter, 50)
 
         self.assertEqual(kursl.theta_init, None)
         self.assertEqual(kursl.samples, None)
@@ -26,11 +26,11 @@ class TestKurslMethod(unittest.TestCase):
 
     def test_set_options(self):
         kursl = KurslMethod()
-        self.assertEqual(kursl.nruns, 50)
+        self.assertEqual(kursl.niter, 50)
 
-        options = {"nruns": 100, "missing": None}
+        options = {"niter": 100, "missing": None}
         kursl.set_options(options)
-        self.assertEqual(kursl.nruns, 100)
+        self.assertEqual(kursl.niter, 100)
 
     def test_compute_prior_default(self):
         """Test default setting for computing prior parameters.
@@ -137,20 +137,20 @@ class TestKurslMethod(unittest.TestCase):
         "Default detrend is mean"
         S = np.random.random(100)*2 + 1
         S_default = KurslMethod.detrend(S)
-        self.assertTrue(abs(np.mean(S_default)) < 1e-7,
+        self.assertEqual(np.round(np.mean(S_default), 7), 0,
                 "Default detrend is mean removing")
 
     def test_detrend_mean(self):
         S = np.random.random(100)*2 - 1
         S_nomean = KurslMethod.detrend(S, remove_type="mean")
-        self.assertTrue(abs(np.mean(S_nomean)) < 1e-7,
+        self.assertEqual(np.round(np.mean(S_nomean), 7), 0,
                 "Removing mean should return mean 0")
 
     def test_detrend_cubic(self):
         t = np.arange(0, 1, 0.005)
         S = t**3 + 2*(t-0.5)**2 + 5
         S_nocubic = KurslMethod.detrend(S, remove_type="cubic")
-        self.assertTrue(abs(np.mean(S_nocubic)) < 1e-7,
+        self.assertEqual(np.round(np.mean(S_nocubic), 7), 0,
                 "Removing mean should return mean 0")
 
     def test_cost_lnprob_zeros(self):
@@ -190,8 +190,8 @@ class TestKurslMethod(unittest.TestCase):
 
         kursl = KurslMethod()
         cost = kursl.cost_function(t, params, S)
-        self.assertTrue(abs(cost)<1e-6, "Cost should be 0. Any difference could be"
-                " due to ODE precision")
+        self.assertEqual(np.round(cost, 6), 0,
+                "Cost should be 0. Any difference could be due to ODE precision")
 
     @unittest.skipIf(QUICK_TEST,
                 "Skipping in quick runs as it takes too long to execute.")
@@ -244,8 +244,8 @@ class TestKurslMethod(unittest.TestCase):
         theta_init[0,0] -= 1
         theta_init[1,0] += 1
 
-        options = {"nruns": 10, "nwalkers": 20}
-        kursl = KurslMethod()
+        options = {"niter": 10, "nwalkers": 20}
+        kursl = KurslMethod(**options)
         _theta = kursl.run_mcmc(t, S, theta_init=theta_init)
         self.assertEqual(_theta.shape, theta.shape, "Results in same shape")
 
@@ -267,7 +267,7 @@ class TestKurslMethod(unittest.TestCase):
 
         oscN, nH = 2, 1
         paramN = 3 + nH*(oscN-1)
-        options = {"nruns":10, "nwalkers":20}
+        options = {"niter":10, "nwalkers":20}
         kursl = KurslMethod(nH=nH, max_osc=oscN, **options)
         self.assertFalse(kursl.PREOPTIMIZE, "No preoptmize")
         self.assertFalse(kursl.POSTOPTIMIZE, "No postoptmize")
@@ -285,10 +285,11 @@ class TestKurslMethod(unittest.TestCase):
         S = np.random.random(t.size)
 
         oscN, nH = 2, 2
+        theta_init = np.random.random((oscN, 3+nH*(oscN-1)))
         theta_init = np.array([[10, 0, 2, 0, 0],
                               [20, 0, 5, 0, 1],
                              ])
-        options = {"nruns":10, "nwalkers":20}
+        options = {"niter":10, "nwalkers":20}
         kursl = KurslMethod(nH=nH, **options)
         theta = kursl.run(t, S, theta_init=theta_init)
 
@@ -306,7 +307,7 @@ class TestKurslMethod(unittest.TestCase):
         oscN, nH = 2, 1
         paramN = 3 + nH*(oscN-1)
         opt_maxiter = 10
-        options = {"nruns":10, "nwalkers":20,
+        options = {"niter":10, "nwalkers":20,
                 "PREOPTIMIZE":True, "POSTOPTIMIZE":True,
                 "opt_maxiter":opt_maxiter}
         kursl = KurslMethod(nH=nH, max_osc=oscN, **options)

@@ -22,6 +22,7 @@ class ModelWrapper(object):
         self.MIN_W = 0
         self.MAX_W = 1e5
 
+        self.s_var = 1.0
         self.THRESHOLD = 0.1
         self.THRESHOLD_OBTAINED = False
 

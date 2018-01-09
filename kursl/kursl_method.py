@@ -46,7 +46,7 @@ class KurslMethod(object):
 
         # MCMC variables
         self.nwalkers = 20
-        self.nruns = 50
+        self.niter = 50
 
         self.PREOPTIMIZE = 0
         self.POSTOPTIMIZE = 0
@@ -86,7 +86,7 @@ class KurslMethod(object):
         #TODO: This could be probably replaced with @property
         theta = np.array(theta)
         if self.theta_init is None:
-            oscN, paramN = theta.shape
+            oscN = theta.shape[0]
             expected_shape = (oscN, 3+self.nH*(oscN-1))
         else:
             expected_shape = self.theta_init.shape
@@ -178,7 +178,7 @@ class KurslMethod(object):
         # Setting number of Walkers
         nwalkers = max(self.nwalkers, theta_init.size*2)
         self.logger.debug("nwalkers: " + str(nwalkers))
-        self.logger.debug("nruns: " + str(self.nruns))
+        self.logger.debug("niter: " + str(self.niter))
 
         # Length of target must be t.size-1 because we lose one sample
         # whilst simulating
@@ -200,7 +200,7 @@ class KurslMethod(object):
         mcmc = KurslMCMC(theta_init, nwalkers=nwalkers, nH=self.nH)
         mcmc.set_model(self.model)
         mcmc.set_sampler(t, S)
-        mcmc.run(niter=self.nruns)
+        mcmc.run(niter=self.niter)
 
         # Plot comparison between plots
         self.samples = mcmc.get_samples()
