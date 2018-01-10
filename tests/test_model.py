@@ -1,8 +1,8 @@
 import numpy as np
 import unittest
 
-from kursl.model import ModelWrapper
-from kursl.kursl_model import KurSL
+from kursl import ModelWrapper
+from kursl import KurSL
 
 class WrapperTest(unittest.TestCase):
 

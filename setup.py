@@ -11,11 +11,13 @@ setup(
     author_email = "laszukdawid@gmail.com",
     description = ("Implementation of KurSL method"),
     license = "",
-    keywords = "example documentation tutorial",
-    url = "http://packages.python.org/an_example_pypi_project",
+    keywords = "scientific signal-processing numerical",
+    url = "https://github.com/laszukdawid/kursl",
     packages=['kursl', 'tests'],
-    long_description=read('README'),
+    long_description=read('README.rst'),
     classifiers=[
         "Development Status :: 3 - Alpha",
+        "Intended Audience :: Science/Research",
+        "Topic :: Scientific/Engineering :: Mathematics",
     ],
 )

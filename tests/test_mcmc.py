@@ -1,9 +1,9 @@
 import numpy as np
 import unittest
 
-from kursl.kursl_model import KurSL
-from kursl.kursl_method import KurslMCMC
-from kursl.model import ModelWrapper
+from kursl import KurSL
+from kursl import KurslMCMC
+from kursl import ModelWrapper
 
 QUICK_TEST = False
 

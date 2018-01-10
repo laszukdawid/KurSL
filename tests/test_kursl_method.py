@@ -2,7 +2,7 @@
 import numpy as np
 import unittest
 
-from kursl.kursl_method import KurslMethod
+from kursl import KurslMethod
 
 QUICK_TEST = False
 
