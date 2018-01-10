@@ -27,11 +27,10 @@ class Preprocessor(object):
         self.max_osc = max_osc
 
         self.ptype = "norm"
-
         self.energy_ratio = energy_ratio
 
-        self.fMin = 0
-        self.fMax = 1e10
+        self.f_min = 0
+        self.f_max = 1e10
 
         self.theta_init = None
 
@@ -135,7 +134,7 @@ class Preprocessor(object):
         """
 
         freq = np.fft.fftfreq(t.size, t[1]-t[0])
-        idx = np.r_[freq>=self.fMin] & np.r_[freq<self.fMax]
+        idx = np.r_[freq>=self.f_min] & np.r_[freq<self.f_max]
         F = np.fft.fft(S)
 
         fourierS, param = self.remove_energy(freq[idx], np.abs(F[idx]),
@@ -148,8 +147,8 @@ class Preprocessor(object):
 
         for i, p in enumerate(param):
             # Extracting phase
-            minIdx = np.argmin(np.abs(p[0]-freq))
-            param[i] = np.append(p, np.angle(F[minIdx]))
+            min_idx = np.argmin(np.abs(p[0]-freq))
+            param[i] = np.append(p, np.angle(F[min_idx]))
 
             # Scaling amplitude
             param[i][1] = param[i][1]/len(fourierS)
@@ -172,13 +171,12 @@ class Preprocessor(object):
                             max_peaks=self.max_osc)
 
         self.logger.debug("Determined prior parameters: ")
-        for p in self.param:
-            self.logger.debug(p)
+        self.logger.debug('\n'.join([str(p) for p in self.param]))
 
         if np.any(self.param[:,:2]<0):
             msg = "Something went weirdly wrong. Either frequency or amplitude " \
                   "was estimated to be negative. What's the sense behind that?\n" \
-                  "Estimates:" + str(self.param)
+                  "Estimates:\n" + str(self.param)
             raise AssertionError(msg)
 
         # There's no point in analysing
@@ -211,177 +209,79 @@ class Preprocessor(object):
 ##  MAIN PROGRAMME
 
 if __name__ == "__main__":
+    import pylab as plt
+    import sys
 
-    logging.basicConfig(level=logging.DEBUG)
+    from kursl import KurSL
+
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     logger = logging.getLogger(__file__)
 
-    PLOT = 0
-    PLOT_SPECTRUM = 1
+    ###################################################
+    ## Signal generation specific
 
-    # Flags
-    RANDOM_PARAM = 0
-    W_MIN_DIFF = 3 # Synthetic specific; min distance in generated frequency
+    # Min distance in generated frequency
+    W_MIN_DIFF = 7
 
-    ptype = ['triang', 'norm','lorentz'][0]
+    # Type of peak that is fit
+    ptype = ['norm', 'triang', 'lorentz'][0]
 
-    fs, dt = 200., 0.005
-    tMin = 0 # Initial time
-    tMax = 1 # Length of segment
+    # Time array
+    tMin, tMax, dt = 0, 5, 0.005
+    t = np.arange(tMin, tMax, dt)
 
-    fMin, fMax = 0, 40
-    saveName = "prior-{}".format(signalType)
-
-    ########################################
-    ## Params for kursl/synth
-    max_osc = 2
-    oscN = max_osc
-
-    ########################################
-    options = dict(ptype=ptype, signalType=signalType)
-    energy_ratio = 0.01
-    preprocessor = Preprocessor(nH=nH, max_osc=max_osc,
-                            energy_ratio=energy_ratio)
+    # Number of oscillators
+    oscN = 6
+    nH = 2
 
     ###################################################
-    ##   Generating KurSL type signal
-    T = np.arange(tMin, tMax, dt)
-    t0, t1, dt = T[0], T[-1], T[1]-T[0]
+    ## Generating KurSL type signal
+    logger.debug("Generating parameters for KurSL")
+    W_MIN, W_MAX = 9, 100
+    Y_MIN, Y_MAX = 0, 2*np.pi
+    R_MIN, R_MAX = 0, 5
+    K_MIN, K_MAX = -5, 5
 
-    if RANDOM_PARAM:
-        logger.debug("Generating parameters for KurSL")
-        W_MIN, W_MAX = 3, 40
-        Y_MIN, Y_MAX = 0, 2*np.pi
-        R_MIN, R_MAX = 0, 5
-        K_MIN, K_MAX = -5, 5
+    # Making sure that there's W_MIN_DIFF between all W
+    while True:
+        W = np.random.random(oscN)*W_MAX + W_MIN
+        if np.all(np.diff(W)>W_MIN_DIFF): break
 
-        allK = {}
+    R = np.random.random(oscN)*R_MAX + R_MIN
+    Y0 = np.random.random(oscN)*Y_MAX + Y_MIN
+    K = np.random.random((oscN, nH*(oscN-1)))*K_MAX + K_MIN
+    K[:] = 0.8*W[:,None]*K/np.sum(K, axis=1)[:,None]
 
-        while True:
-            W = np.random.random(oscN)*W_MAX + W_MIN
-            if np.all(np.diff(W)>W_MIN_DIFF): break
+    theta = np.column_stack((W, Y0, R, K))
 
-        R = np.random.random(oscN)*R_MAX + R_MIN
-        Y0 = np.random.random(oscN)*Y_MAX + Y_MIN
-
-        for _nH in range(genH):
-            allK[_nH] = np.random.random((oscN, oscN-1))*K_MAX + K_MIN
-
-    elif LOAD_PARAM:
-        load_params = np.load('testParams.npy')
-        W = load_params[:,0]
-        Y0 = load_params[:,1]
-        R = load_params[:,2]
-
-        shape = load_params.shape
-        allK = {}
-        maxH = (shape[1]-3)/(shape[0]-1)
-        for _nH in range(maxH):
-            allK[_nH] = load_params[:, np.arange(shape[0]-1)*maxH+_nH]
-
-    else:
-        f = [2, 5., 10., 13, 6, 19]
-        W = [_f*2*np.pi for _f in f]
-        Y0 = [1.2, 2.5, 0.0, 2.0, 0.5]
-        R = [1.3, 1.5, 1.8, 2.0, 3.2]
-
-        # Setting up K values.
-        # These are not necessarily used to generated signal, as
-        # there is normalisation condition below making w > sum(|k|)
-        allK = np.zeros((nH, oscN, oscN-1))
-        allK[0] = np.array([[  112.0, -1.5,   7.5,  2.0, -1.0],
-                            [ -2.0, -7.0,   5.1,  9.7, -6.0],
-                            [ 12.2, 13.2,  13.8,  4.3,  2.9],
-                            [  5.1, 10.1,  -1.9,  0.5, -3.1],
-                            [ -11.7,  3.9,   4.5, -8.5,  2.0]
-                            ])
-        allK[1] = np.array([[ -3.5,  10.2,  -11.8,  4.2,  2.5],
-                            [  9.5,  32.1,   3.2,  7.3,  5.7],
-                            [  20.5,  6.3,  -1.2,  5.7, -3.5],
-                            [  1.9, -2.1,   9.1,  0.2, -2.5],
-                            [ -2.2,  2.1,  14.0,  0.1,  5.9],
-                            ])
-        allK[2] = np.array([[ -1.2, -0.4,   -25.5, -2.3,  5.2],
-                            [ -3.3,  4.2,  11.5, -1.8,  2.3],
-                            [  7.7,  0.1,   6.0, -4.1,  1.7],
-                            [  1.9, 10.7,  -1.5, -1.1,  4.3],
-                            [ -1.7,  2.4,  -9.2, -1.1,  0.6],
-                            ])
-
-        W = np.array(W[:oscN])
-        Y0 = np.array(Y0)[:oscN]
-        R = np.array(R)[:oscN]
-        K = np.zeros((oscN, genH*(oscN-1)))
-        for _nH in range(genH):
-            _tmpK = np.array(allK[_nH])
-            K[:, np.arange(oscN-1)*genH+_nH] = _tmpK[:oscN,:oscN-1]
-
-        kSum = np.sum(np.abs(K),axis=1)[:,None]
-        idx = (kSum>W[:,None]).flatten()
-        if np.any(idx): K[idx] *= 0.98*W[idx,None]/kSum[idx]
-
-        # Sorting params in reverse freq
-        genParams = np.column_stack((W,Y0,R,K))
-        genParams = genParams[np.argsort(W)[::-1]]
-
-        ###########################################
-        ## Message
-        logger.debug('Generating %s type signal for %i oscillators with parameters' %(signalType,oscN))
-        logger.debug('genParams: ' + str(genParams))
-        logger.debug('genParams.shape: ' + str(genParams.shape))
-
-        saveName = 'genParam-%s'%(signalType)
-        np.savetxt(saveName+'.txt', genParams, fmt='%.6e')
-
-        kursl.oscN = oscN
-        kursl.nH = nH
-        phi, A, sOscInput = kursl.model(T, genParams)
-        sInput = sOscInput
-
-        # Adding some noise random function
-        if ADD_NOISE:
-            phi += 0.01*np.random.normal(0,1, (oscN, N-1))
-            A += 0.01*np.random.normal(0,1, (oscN, N-1))
-
-        T = T[:-1] # sInput based on diff
+    kursl = KurSL(theta)
+    _, _, s_gen = kursl.generate(t)
+    s_gen = np.sum(s_gen, axis=0)
+    t = t[:-1]
 
     ####################################################
-    ## Determining num of osc based on Fourier energy
-    sInput = np.sum(sInput, axis=0)
-    if PLOT or PLOT_SPECTRUM:
-        import matplotlib
-        matplotlib.use("Agg")
-        import pylab as plt
+    ## Estimate peaks present in signal
+    preprocess = Preprocessor(max_osc=oscN, nH=nH)
+    theta_init = preprocess.compute_prior(t, s_gen)
+    peaks = theta_init[:,0]*0.5/np.pi
 
-    if PLOT:
-        plt.figure()
-        plt.plot(T, sInput)
-        plt.savefig("sInput")
-        plt.clf()
-
-    if PLOT_SPECTRUM:
-        plt.figure()
-
-        freq = np.fft.fftfreq(len(T), dt)
-        idx = np.r_[freq>=fMin] & np.r_[freq<=fMax]
-
-        freq = freq[idx]
-        F = np.abs(np.fft.fft(sInput)[idx])
-        plt.plot(freq, F)
-
-        for p in peaks: plt.axvline(p, color='red', linestyle='dashed')
-        plt.savefig('sInput_FD')
-        plt.clf()
-
-    nInput = sInput.shape[0]
     ####################################################
+    ## Plot extracted frequencies in spectrum
+    plt.figure()
 
-    best_param = kursl.run(T, sInput)
-    logger.debug(best_param)
-    best_param = best_param.reshape((-1, 3+nH*(oscN-1)))
+    freq = np.fft.fftfreq(len(t), dt)
+    f_min = max(0, W_MIN/6.28-2)
+    f_max = min(W_MAX/6.28+2, 1/(2*np.pi*dt))
+    idx = np.r_[freq>f_min] & np.r_[freq<f_max]
 
-    # Saving results
-    logger.debug("Saving results to " + saveName + "... ")
-    np.save(saveName, best_param)
+    freq = freq[idx]
+    F = np.abs(np.fft.fft(s_gen)[idx])
+    plt.plot(freq, F)
+    for p in peaks:
+        plt.axvline(p, color='red', linestyle='dashed')
+    plt.xlim((f_min, f_max))
+    plt.savefig('s_gen_spectrum')
+    plt.clf()
 
     ####################################################
     ####################################################

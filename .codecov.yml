@@ -16,6 +16,7 @@ coverage:
     - __init__.py
     - test_*.py
     - doc/*
+    - examples/*
 
 comment:
   layout: "header, diff, changes"

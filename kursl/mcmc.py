@@ -15,9 +15,6 @@ import time, datetime
 from .kursl_model import KurSL
 from .model import ModelWrapper
 
-#import warnings
-#warnings.simplefilter('always', DeprecationWarning)
-
 class KurslMCMC(object):
 
     logger = logging.getLogger(__name__)
@@ -191,6 +188,9 @@ class KurslMCMC(object):
         # Whatever the outcome, clear flag
         self.model.THRESHOLD_OBTAINED = False
 
+        theta = self.get_theta()
+        return theta
+
     def get_samples(self):
         return self.chain[:, self.skip_init_steps:,:]
 
@@ -306,28 +306,23 @@ class KurslMCMC(object):
 
 if __name__ == "__main__":
 
+    import sys
     logfile = __file__.split('.')[0] + ".log"
-    #logging.basicConfig(filename=logfile, level=logging.DEBUG)
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     logger = logging.getLogger(__file__)
 
     PLOT_RESULTS = True
-
-    FIG_SIG = 0
-    FIG_IMF = 0
-    FIG_instFreq = 0
-    FIG_instFreq_zoom = 0
-    FIG_CORNER = 0
-
-    MIN_R, MAX_R = 1, 5
-    MIN_W, MAX_W = 10, 30
 
     N = 1024*2
     t = np.linspace(0, 3, N)
     t0, t1, dt = t[0], t[-1], t[1]-t[0]
 
     oscN = 2 # Number of oscillators
-    nH = 2   # Number of harmonics
+    nH = 1   # Number of harmonics
+
+    # For generating parameters
+    MIN_R, MAX_R = 1, 5
+    MIN_W, MAX_W = 10, 30
 
     # Initial values for system
     W = np.random.random(oscN)*(MAX_W-MIN_W) + MIN_W
@@ -344,47 +339,29 @@ if __name__ == "__main__":
     if oscN != 1: P[:,3:3+nH*(oscN-1)] = kMat
     noise = P*np.random.normal(0, 0.2)
 
-    print("P:")
-    print(P)
-    print("noise:")
-    print(noise)
-
     # Generating signal
     phase, amp, sInput = KurSL(P).generate(t)
-    for i in range(oscN): sInput[i] += np.random.normal(0, 0.2*R[i], N-1)
-
-    # Initiating theta params values
-    nll = lambda *args: -lnlike(*args)
-    r = lambda s, n: rand(0,s,n)/np.sqrt(s)
+    for i in range(oscN):
+        sInput[i] += np.random.normal(0, 0.2*R[i], N-1)
 
     # Applying MCMC
     theta_init = P + noise
 
     S = np.sum(sInput, axis=0)+np.random.random(t.size-1)
 
-    mcmc = KurslMCMC(theta_init, nH=nH, nwalkers=20, niter=100)
-    mcmc.set_sampler(t,S)
-    mcmc.run()
+    logger.info("Sit back and relax. This will take a while...")
+    mcmc = KurslMCMC(theta_init, nH=nH, nwalkers=40, niter=100)
+    mcmc.set_sampler(t, S)
+    theta = mcmc.run()
 
     # Plot comparison between plots
-    samples = mcmc.get_samples()
-    lnprob = mcmc.get_lnprob()
-    np.save("samples", samples)
-    np.save("lnprob", lnprob)
-
-    sDim = samples.shape[1]
-    bestIdx = np.argmax(lnprob)
-    params = samples[int(bestIdx/sDim), bestIdx%sDim, :]
-    params = params.reshape((oscN, -1))
-    np.save("bestParam", params)
-
-    print("Best estimate: " + str(params))
+    logger.info("Best estimate: " + str(theta))
 
     # Plot results
     if PLOT_RESULTS:
         import pylab as plt
 
-        kursl = KurSL(params)
+        kursl = KurSL(theta)
         phase, amp, rec = kursl.generate(t)
 
         plt.figure()

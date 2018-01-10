@@ -13,7 +13,6 @@ from __future__ import division, print_function
 import logging
 import numpy as np
 import scipy.optimize as opt
-import os
 
 from .kursl_model import KurSL
 from .mcmc import KurslMCMC
@@ -25,7 +24,6 @@ class KurslMethod(object):
 
     logger = logging.getLogger(__name__)
 
-   # _allowed_options = ["ptype", "signalType"]
     _peak_types = ["triang", "norm", "lorentz"]
 
     def __init__(self, nH=1, max_osc=-1, *args, **kwargs):
@@ -46,7 +44,7 @@ class KurslMethod(object):
 
         # MCMC variables
         self.nwalkers = 20
-        self.niter = 50
+        self.niter = 20
 
         self.PREOPTIMIZE = 0
         self.POSTOPTIMIZE = 0
@@ -77,9 +75,6 @@ class KurslMethod(object):
         self.theta_init = preprocessor.compute_prior(t, S)
         self.oscN, self.paramN = self.theta_init.shape
         self.logger.debug('priorC: ' + str(self.theta_init))
-
-        ## Save initial parameters
-        #np.savetxt('initParam.txt', self.theta_init.T, delimiter=' & ', fmt='%7.4g')
 
     def set_prior(self, theta):
         """Sets prior value for theta parameter."""
@@ -150,10 +145,10 @@ class KurslMethod(object):
         optimal_result = opt.minimize(cost, theta_init, options=options)
 
         # Run optimizer
-        best_param = optimal_result['x']
+        theta = optimal_result['x']
 
         # return optmized results
-        return best_param.reshape(theta_init.shape)
+        return theta.reshape(theta_init.shape)
 
     def run_mcmc(self, t, S, theta_init=None):
         """Use MCMC to fit KurSL model to signal S.
@@ -282,34 +277,21 @@ class KurslMethod(object):
 ##  MAIN PROGRAMME
 
 if __name__ == "__main__":
+    import os
+    import sys
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     logger = logging.getLogger(__file__)
 
-    PLOT = 0
-    PLOT_SPECTRUM = 1
+    PLOT = True
+    PLOT_SPECTRUM = True
+    SAVE_RESULTS = True
 
-    # Flags
-    ADD_NOISE = 0
-    SET_PRIOR_LOAD = 0
-    LOAD_PARAM = 0
+    ptype = [ 'norm', 'triang', 'lorentz'][0]
 
-    RANDOM_PARAM = 0
-    W_MIN_DIFF = 3 # Synthetic specific; min distance in generated frequency
-
-    epiLetter = "S"
-    epiNumber = 20
-    signalType = "kursl"
-    ptype = ['triang', 'norm','lorentz'][0]
-
-    fs = 173. # Hz
-    dt = 1./fs
-    tMin = 0 # Initial time
-    tMax = 1 # Length of segment
-    N = int((tMax-tMin)*fs)
-
-    f_min, f_max = 0, 40
-    saveName = "results-{}".format(signalType)
+    dt = 0.005
+    tMin, tMax = 0, 2
+    T = np.arange(tMin, tMax, dt)
 
     ########################################
     ## Params for kursl/synth
@@ -319,218 +301,106 @@ if __name__ == "__main__":
     genH = nH
     oscN = max_osc
 
-    ########################################
-    ## Correct setting validation
-    if not (ptype in ['triang','norm','lorentz']):
-        raise ValueError("Wrong `ptype` selected")
-
-    if not (tMin<tMax):
-        raise ValueError("Unstructered time array")
-
-    if not (f_min<f_max):
-        raise ValueError("f_min < f_max")
-
-    ########################################
-    options = dict(ptype=ptype, signalType=signalType)
-    options['energy_ratio'] = 0.01
+    options = dict(ptype=ptype, energy_ratio=0.01)
     kursl = KurslMethod(nH=nH, max_osc=max_osc, **options)
 
     ###################################################
     ##   Generating KurSL type signal
-    if signalType in ['kursl', 'synth']:
-        T = np.linspace(tMin, tMax, N+1)
-        t0, t1, dt = T[0], T[-1], T[1]-T[0]
+    f = [2, 5., 10., 13]
+    W = [_f*2*np.pi for _f in f]
+    Y0 = [1.2, 2.5, 0.0, 2.0]
+    R = [1.3, 1.5, 1.8, 2.0]
 
-        if RANDOM_PARAM:
-            logger.debug("Generating parameters for KurSL")
-            W_MIN, W_MAX = 3, 40
-            Y_MIN, Y_MAX = 0, 2*np.pi
-            R_MIN, R_MAX = 0, 5
-            K_MIN, K_MAX = -5, 5
+    K = np.zeros((3, 4, 3))
+    K[0] =[[ 4.0, -1.5,  1.2],
+           [-2.0, -7.0,  5.1],
+           [12.2,  3.2,  1.8],
+           [ 5.1,  8.1, -1.9]]
+    K[1] =[[-3.5, -4.2,  2.5],
+           [ 9.5,  3.2,  7.3],
+           [ 6.3, -1.2, -3.5],
+           [ 1.9,  0.2, -2.5]]
+    K[2] =[[-1.2, -0.4, -2.3],
+           [-3.3, -1.8,  2.3],
+           [ 0.1,  6.0,  1.7],
+           [ 1.9, -1.5,  4.3]]
 
-            allK = {}
+    W = np.array(W[:oscN])
+    Y0 = np.array(Y0)[:oscN]
+    R = np.array(R)[:oscN]
+    K = np.hstack(K[:, :oscN, :oscN-1])
 
-            while True:
-                W = np.random.random(oscN)*W_MAX + W_MIN
-                if np.all(np.diff(W)>W_MIN_DIFF): break
+    kSum = np.sum(np.abs(K), axis=1)[:,None]
+    idx = (kSum>W[:,None]).flatten()
+    if np.any(idx): K[idx] *= 0.98*W[idx,None]/kSum[idx]
 
-            R = np.random.random(oscN)*R_MAX + R_MIN
-            Y0 = np.random.random(oscN)*Y_MAX + Y_MIN
+    genParams = np.column_stack((W,Y0,R,K))
 
-            for _nH in range(genH):
-                allK[_nH] = np.random.random((oscN, oscN-1))*K_MAX + K_MIN
+    ###########################################
+    ## Message
+    logger.debug('Generating signal with KurSL for %i oscillators with parameters' %(oscN))
+    logger.debug('genParams: ' + str(genParams))
 
-        elif LOAD_PARAM:
-            load_params = np.load('testParams.npy')
-            W = load_params[:,0]
-            Y0 = load_params[:,1]
-            R = load_params[:,2]
+    if SAVE_RESULTS:
+        np.savetxt('genParam.txt', genParams, fmt='%.6e')
 
-            shape = load_params.shape
-            allK = {}
-            maxH = (shape[1]-3)/(shape[0]-1)
-            for _nH in range(maxH):
-                allK[_nH] = load_params[:, np.arange(shape[0]-1)*maxH+_nH]
+    kursl.oscN = oscN
+    kursl.nH = nH
+    phi, A, sInput = kursl.model(T, genParams)
 
-        else:
-            f = [2, 5., 10., 13, 6, 19]
-            W = [_f*2*np.pi for _f in f]
-            Y0 = [1.2, 2.5, 0.0, 2.0, 0.5]
-            R = [1.3, 1.5, 1.8, 2.0, 3.2]
-
-            # Setting up K values.
-            # These are not necessarily used to generated signal, as
-            # there is normalisation condition below making w > sum(|k|)
-            allK = {}
-            allK[0] =[[  112.0, -1.5,   7.5,  2.0, -1.0],
-                      [ -2.0, -7.0,   5.1,  9.7, -6.0],
-                      [ 12.2, 13.2,  13.8,  4.3,  2.9],
-                      [  5.1, 10.1,  -1.9,  0.5, -3.1],
-                      [ -11.7,  3.9,   4.5, -8.5,  2.0]]
-            allK[1] =[[ -3.5,  10.2,  -11.8,  4.2,  2.5],
-                      [  9.5,  32.1,   3.2,  7.3,  5.7],
-                      [  20.5,  6.3,  -1.2,  5.7, -3.5],
-                      [  1.9, -2.1,   9.1,  0.2, -2.5],
-                      [ -2.2,  2.1,  14.0,  0.1,  5.9]]
-            allK[2] =[[ -1.2, -0.4,   -25.5, -2.3,  5.2],
-                      [ -3.3,  4.2,  11.5, -1.8,  2.3],
-                      [  7.7,  0.1,   6.0, -4.1,  1.7],
-                      [  1.9, 10.7,  -1.5, -1.1,  4.3],
-                      [ -1.7,  2.4,  -9.2, -1.1,  0.6]]
-
-
-            W = np.array(W[:oscN])
-            Y0 = np.array(Y0)[:oscN]
-            R = np.array(R)[:oscN]
-            K = np.zeros((oscN, genH*(oscN-1)))
-            for _nH in range(genH):
-                _tmpK = np.array(allK[_nH])
-                K[:, np.arange(oscN-1)*genH+_nH] = _tmpK[:oscN,:oscN-1]
-
-            kSum = np.sum(np.abs(K),axis=1)[:,None]
-            idx = (kSum>W[:,None]).flatten()
-            if np.any(idx): K[idx] *= 0.98*W[idx,None]/kSum[idx]
-            #~ priorC[3*oscN:] = K.T.flatten()
-
-            # Sorting params in reverse freq
-            genParams = np.column_stack((W,Y0,R,K))
-            genParams = genParams[np.argsort(W)[::-1]]
-
-            ###########################################
-            ## Message
-            logger.debug('Generating %s type signal for %i oscillators with parameters' %(signalType,oscN))
-            logger.debug('genParams: ' + str(genParams))
-            logger.debug('genParams.shape: ' + str(genParams.shape))
-
-            saveName = 'genParam-%s'%(signalType)
-            np.savetxt(saveName+'.txt', genParams, fmt='%.6e')
-            #plt.save(saveName, genParams)
-
-            kursl.oscN = oscN
-            kursl.nH = nH
-            phi, A, sOscInput = kursl.model(T, genParams)
-            sInput = sOscInput
-
-            # Adding some noise random function
-            if ADD_NOISE:
-                phi += 0.01*np.random.normal(0,1, (oscN, N-1))
-                A += 0.01*np.random.normal(0,1, (oscN, N-1))
-
-            T = T[:-1] # sInput based on diff
-
-    ####################################################
-    ## Generate random signal
-    if signalType == 'random':
-        N = 1024*3
-        T = np.linspace(0, 3, N)
-        t0, t1, dt = T[0], T[-1], T[1]-T[0]
-        sInput = np.random.normal(0, 1, (1,N))
-
-    ####################################################
-    ## Fetch epilepsy data
-    if signalType == 'epilepsy':
-        print("Loading epilepsy data {}.{}".format(epiLetter, epiNumber))
-
-        _l = epiLetter
-        dataPath = os.path.join("Data","Epilepsy",_l,_l)
-        print(dataPath)
-
-        loadData = lambda n: np.loadtxt(dataPath+"{:03}.txt".format(n))
-
-        sInput = loadData(epiNumber)
-        sInput = sInput.reshape((1,-1))
-
-        N = sInput.size
-        fs = 173.61 # Hz
-        T = np.arange(N)/fs
-
-        idx = np.r_[T>=tMin] & np.r_[T<tMax]
-        T = T[idx]
-        sInput = sInput[:,idx]
-
+    T = T[:-1] # sInput based on diff
 
     ####################################################
     ## Determining num of osc based on Fourier energy
     sInput = np.sum(sInput, axis=0)
+    sInput[:] = sInput + np.random.random(sInput.size)*0.2*oscN
     if PLOT or PLOT_SPECTRUM:
         import pylab as plt
 
     if PLOT:
         plt.figure()
         plt.plot(T, sInput)
-        plt.savefig("sInput")
+        plt.savefig("signal")
         plt.clf()
 
     if PLOT_SPECTRUM:
-        peaks = [ 1.96503875, 4.99999966, 6.3333319, 9.65672334, 12.36707368]
-
         plt.figure()
-
         freq = np.fft.fftfreq(len(T), dt)
-        idx = np.r_[freq>=f_min] & np.r_[freq<=f_max]
+        idx = np.r_[freq>=0] & np.r_[freq<=25]
 
         freq = freq[idx]
         F = np.abs(np.fft.fft(sInput)[idx])
         plt.plot(freq, F)
 
-        for p in peaks: plt.axvline(p, color='red', linestyle='dashed')
         plt.savefig('sInput_FD')
         plt.clf()
 
-    nInput = sInput.shape[0]
-
-    ###################################################
-    ## Loading prior parameters from file
-    if SET_PRIOR_LOAD:
-        theta_init = np.load('best_param.npy')
-        theta_init = theta_init[np.argsort(theta_init[:,0])[::-1]]
-        oscN = theta_init.shape[0]
-        paramN = theta_init.shape[1]
-    else:
-        print("Parameters will be determined")
-
     ####################################################
     ####################################################
 
-    print("Running model")
-    best_param = kursl.run(T, sInput)
-    samples = kursl.samples
-    lnprob = kursl.lnprob
-    print('oscN: ', oscN)
-    print('nH: ', nH)
-    print("best_param: ")
-    print(best_param)
-    best_param = best_param.reshape((-1, 3+nH*(oscN-1)))
+    logger.info("Running model")
+    theta = kursl.run(T, sInput)
+    logger.debug("theta: ")
+    logger.debug(theta)
+
+    if PLOT:
+        _, _, rec = kursl.model(T, theta)
+        plt.figure()
+        plt.plot(T, sInput, 'g')
+        plt.plot(T[:rec.shape[1]], np.sum(rec, axis=0), 'r')
+        plt.savefig("signal")
+        plt.clf()
 
     # Saving results
-    print("Saving results to " + saveName + "... ")
-    if "genParams" in locals():
-        np.savez(saveName, samples=samples, lnprob=lnprob, sInput=sInput, x=T, nH=nH, genParams=genParams)
-    else:
-        np.savez(saveName, samples=samples, lnprob=lnprob, sInput=sInput, x=T, nH=nH)
+    if SAVE_RESULTS:
+        logger.info("Saving results to 'results.npy' ... ")
+        np.savez("results.npy", samples=kursl.samples, lnprob=kursl.lnprob,
+                sInput=sInput, x=T, nH=nH,
+                genParams=genParams, theta=theta,
+                )
 
     ####################################################
     ####################################################
-    print("----------------")
-    print("|Finished KurSL|")
-    print("----------------")
+    logger.info("----------------")
+    logger.info("|Finished KurSL|")
+    logger.info("----------------")
