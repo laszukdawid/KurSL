@@ -55,6 +55,8 @@ class KurslMethod(object):
         self.samples = None
         self.lnprob = None
 
+        self.threads = 1
+
         # Set parameters
         self.set_options(kwargs)
 
@@ -192,7 +194,8 @@ class KurslMethod(object):
         self.model.nH = self.nH
 
         # Define MCMC method
-        mcmc = KurslMCMC(theta_init, nwalkers=nwalkers, nH=self.nH)
+        mcmc = KurslMCMC(theta_init, nwalkers=nwalkers,
+                            nH=self.nH, threads=self.threads)
         mcmc.set_model(self.model)
         mcmc.set_sampler(t, S)
         mcmc.run(niter=self.niter)

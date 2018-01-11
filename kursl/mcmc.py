@@ -19,7 +19,7 @@ class KurslMCMC(object):
 
     logger = logging.getLogger(__name__)
 
-    def __init__(self, theta_init, theta_std=None, nwalkers=None, niter=100, **kwargs):
+    def __init__(self, theta_init, theta_std=None, nwalkers=None, niter=100, threads=1, **kwargs):
 
         # Setting paramters
         self.theta_init = theta_init
@@ -28,7 +28,7 @@ class KurslMCMC(object):
         self.niter = niter
 
         # Number of threads used to compute
-        self.threads = 1
+        self.threads = threads
 
         # Inner flag options
         self.skip_init_steps = 0
