@@ -125,7 +125,6 @@ class KurslMethod(object):
         """
         _, _, s_rec = self.model(t, params)
         s_rec_flat = np.sum(s_rec, axis=0)
-        diff = s_rec_flat - Y_target[:-1]
         cost = np.abs(self.cost_lnprob(s_rec_flat, Y_target[:-1]))
         return cost
 
@@ -280,7 +279,6 @@ class KurslMethod(object):
 ##  MAIN PROGRAMME
 
 if __name__ == "__main__":
-    import os
     import sys
 
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)

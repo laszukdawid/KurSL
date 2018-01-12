@@ -229,7 +229,7 @@ class TestMCMC(unittest.TestCase):
 
         # After simulation is finished check for correctness
         with self.assertRaises(AttributeError) as error:
-            theta = mcmc.get_theta()
+            mcmc.get_theta()
         self.assertTrue("theta" in str(error.exception))
         self.assertTrue("run()" in str(error.exception))
 
@@ -264,7 +264,6 @@ class TestMCMC(unittest.TestCase):
 
     def test_lnprior(self):
         t = np.arange(0, 1, 0.01)
-        S = np.random.random(t.size)
         theta = self.random_theta(3, 2)
         kursl = KurSL(theta)
         model = ModelWrapper(kursl)
