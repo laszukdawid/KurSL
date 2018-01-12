@@ -115,7 +115,8 @@ class KurSL(object):
         dPhi0 = dPhi[:,0][:,None]
 
         amp = np.sqrt(dPhi0/dPhi)
-        amp *= (R/np.max(amp, axis=1))[:,None]
+        #amp *= R[:,None]
+        amp[:] = amp*(R/np.max(amp, axis=1))[:,None]
         P = np.cos(phase)
         S = amp*P
 
@@ -160,101 +161,59 @@ class KurSL(object):
 ##  MAIN PROGRAMME
 if __name__ == "__main__":
 
-    #######################################
-    ## Flags
+    import pylab as plt
 
     # Plotting
-    FIG_REC_TIME = 0 # Plot reconstructed time series
-    FIG_REC_FREQ = 0 # Plot signal's Fourier spectrum
-    FIG_REC_ALL  = 0 # Plot all components and their FT
-    FIG_REC_DIFF = 0 # Plot components and differents to cos(wt)
-    SHOW_PLOTS   = 0 # Show plots
-
-    if np.any((FIG_REC_TIME, FIG_REC_FREQ, FIG_REC_ALL, FIG_REC_DIFF)):
-        import pylab as plt
-
-    # Assign parameters randomly
-    RANDOM = True
+    FIG_REC_TIME = 1 # Plot reconstructed time series
+    FIG_REC_FREQ = 1 # Plot signal's Fourier spectrum
+    FIG_REC_ALL  = 1 # Plot all components and their FT
+    SHOW_PLOTS   = 1 # Show plots
 
     #######################################
     # Number of oscillators
-    oscN = 3
-    nH = 3
+    oscN = 4
+    nH = 2
 
-    dt = 0.01
-    tMin, tMax = 0, 5
-    fMin, fMax = 0, 25
+    t_min, t_max, dt = 0, 5, 0.005
+    f_min, f_max = 0, 30
 
-    T = np.linspace(tMin, tMax, (tMax-tMin)/dt)
-    N = T.size
+    T = np.arange(t_min, t_max, dt)
 
     #######################################
-    if RANDOM:
-        W_MIN, W_MAX = 6, 90
-        Y_MIN, Y_MAX = 0, 2*np.pi
-        R_MIN, R_MAX = 0, 5
-        K_MIN, K_MAX = -3.5, 7.5
+    W_MIN, W_MAX = 6, 150
+    Y_MIN, Y_MAX = 0, 2*np.pi
+    R_MIN, R_MAX = 0, 5
+    K_MIN, K_MAX = -3.5, 7.5
 
-        W = np.random.random(oscN)*W_MAX + W_MIN
-        Y0 = np.random.random(oscN)*Y_MAX + Y_MIN
-        R = np.random.random(oscN)*R_MAX + R_MIN
-        K = np.random.random((oscN, (oscN-1)*nH))*K_MAX + K_MIN
-        K = (K.T*0.1*W).T
+    W = np.random.random(oscN)*W_MAX + W_MIN
+    Y0 = np.random.random(oscN)*Y_MAX + Y_MIN
+    R = np.random.random(oscN)*R_MAX + R_MIN
+    K = np.random.random((oscN, (oscN-1)*nH))*K_MAX + K_MIN
+    K = 0.1*W[:,None]*K/np.sum(np.abs(K), axis=1)[:,None]
 
-    # Some exemplary values
-    else:
-        W = [2, 5., 10., 13, 6, 19]
-        Y0 = [1.2, 2.5, 0, 2, 0.5]
-        R = [1, 1.5, 1, 1, 0.5]
-        K = [[ 2.0,  1.5,  .5,   2., -1.0, -3.1],
-             [  -2, -7.0, 4.1,   2., -6.0,  2.8],
-             [ 2.2,  3.2, 3.8,  0.0,  2.9,  1.1],
-             [ 0.1, 10.1, 0.0,  0.5, -3.1, -9.7],
-             [-1.7,  0.1, 4.5, -8.5,  2.0,  5.5]]
-
-        W = np.array(W[:oscN])*2.*np.pi
-        Y0 = np.array(Y0)[:oscN]
-        R = np.array(R)[:oscN]
-        K = np.array(K)[:oscN, :(oscN-1)*nH]
-
-    #######################################
-    # Merge data and sort in reverse freq order
     genParams = np.column_stack((W,Y0,R,K))
-    genParams = genParams[np.argsort(W)[::1]]
-
-    labels_list = ["W","Y0","R"] + ['k^{%i}_{%i}'%(i,j) for j in range(1,1+nH) for i in range(1,oscN)]
-    labels_str = ' & '.join(labels_list)+"\n"
-    labels_byte = bytes(labels_str.encode("ASCII"))
-
-    f = open('genParams.txt','wb')
-    f.seek(0)
-    f.truncate() # Wipe file
-    f.write(labels_byte)
-    np.savetxt(f, genParams, fmt='%.2f',delimiter=' & ')
-    f.close()
+    np.savetxt("genParams.txt", genParams)
     print("genParams: ", genParams)
 
     #######################################
     ## Start model
     kurSL = KurSL(genParams)
-    phi, amp, sOscInput = kurSL.generate(T)
-    sInput = np.sum(sOscInput, axis=0)
-
-    T = T[:-1] # sInput based on diff
+    phi, amp, s_osc = kurSL.generate(T)
+    s_flat = np.sum(s_osc, axis=0)
+    T = T[:-1] # signal based on diff
 
     saveName = 'kursl-model'
-    np.savez(saveName, genParams=genParams, sOscInput=sOscInput,
+    np.savez(saveName, genParams=genParams, s_input=s_osc,
                 A=amp, phi=phi, T=T)
 
     #######################################
     # Plotting results
-    freq = np.fft.fftfreq(sInput.size, dt)
-    idx = np.r_[freq>fMin] & np.r_[freq<fMax]
+    freq = np.fft.fftfreq(s_flat.size, dt)
+    idx = np.r_[freq>f_min] & np.r_[freq<f_max]
 
-    eachFT = np.abs(np.fft.fft(sOscInput)[:,idx])
-    FT = np.abs(np.fft.fft(sInput)[idx])
+    eachFT = np.abs(np.fft.fft(s_osc)[:,idx])
+    FT = np.abs(np.fft.fft(s_flat)[idx])
     freq = freq[idx]
-
 
     ####################
     if FIG_REC_ALL:
@@ -263,7 +222,7 @@ if __name__ == "__main__":
         for n in range(oscN):
             # Time domain
             ax = fig.add_subplot(oscN, 2, 2*n+1)
-            plt.plot(T, sOscInput[n])
+            plt.plot(T, s_osc[n])
             plt.plot(T, -amp[n],'r')
             plt.plot(T,  amp[n],'r')
 
@@ -286,53 +245,26 @@ if __name__ == "__main__":
 
         #~ plt.suptitle("All comp TF Dist")
         plt.tight_layout()
-        plt.savefig('KurSL_eachTFD_or{}'.format(nH), dpi=120)
-
-    ####################
-    if FIG_REC_DIFF:
-        fig = plt.figure()
-
-        for n in range(oscN):
-            # Time domain
-            ax = fig.add_subplot(oscN, 2, 2*n+1)
-            plt.plot(T, sOscInput[n])
-            plt.plot(T, -amp[n],'r')
-            plt.plot(T,  amp[n],'r')
-
-            yMax = np.max(np.abs(amp[n]))
-            plt.ylim((-yMax*1.05, yMax*1.05))
-            plt.locator_params(axis='y', nbins=4)
-            if(n!=oscN-1): plt.gca().axes.get_xaxis().set_ticks([])
-
-            # Time domain - diff to no coupling
-            ax = fig.add_subplot(oscN, 2, 2*n+2)
-            plt.plot(T, sOscInput[n]-R[n]*np.cos(W[n]*T+Y0[n]))
-
-            plt.locator_params(axis='y', nbins=4)
-            if(n!=oscN-1): plt.gca().axes.get_xaxis().set_ticks([])
-
-        plt.suptitle("All comps and cmp to no coupling comps")
-        plt.tight_layout()
-        plt.savefig('KurSL_diffTD_or{}'.format(nH))
+        plt.savefig('KurSL_eachTFD', dpi=120)
 
     ####################
     if FIG_REC_TIME:
         plt.figure()
-        plt.plot(T, sInput)
+        plt.plot(T, s_flat)
         plt.title("Time series")
         plt.ylabel("Amplitude")
         plt.xlabel("Time [s]")
-        plt.savefig('KurSL_TD_or{}'.format(nH))
+        plt.savefig('KurSL_TD')
 
     ####################
     if FIG_REC_FREQ:
         plt.figure()
         plt.plot(freq, FT/np.max(FT))
-        plt.xlim((fMin, fMax))
+        plt.xlim((f_min, f_max))
         plt.title("Fourier spectrum")
         plt.ylabel("Amplitude")
         plt.xlabel("Frequency [Hz]")
-        plt.savefig('KurSL_FD_or{}'.format(nH))
+        plt.savefig('KurSL_FD')
 
     ####################
     if SHOW_PLOTS:
@@ -341,3 +273,4 @@ if __name__ == "__main__":
     ########################################
     ######      this is the end       ######
     ########################################
+
