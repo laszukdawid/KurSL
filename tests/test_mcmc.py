@@ -7,6 +7,7 @@ from kursl import ModelWrapper
 
 QUICK_TEST = False
 
+
 class TestMCMC(unittest.TestCase):
 
     @staticmethod
@@ -164,7 +165,7 @@ class TestMCMC(unittest.TestCase):
         theta_init = np.array(theta, dtype=np.float64)
         theta_init[:, 0] += 2 - np.random.random(2)*0.5
         theta_init[:, 2] += 1 - np.random.random(2)*0.5
-        mcmc = KurslMCMC(theta_init, theta_std, nwalkers=50, niter=300)
+        mcmc = KurslMCMC(theta_init, theta_std, nwalkers=40, niter=200)
         mcmc.set_threshold(0.001)
         mcmc.set_sampler(t, S)
         mcmc.run()

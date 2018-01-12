@@ -43,8 +43,8 @@ class KurslMethod(object):
         self.f_max = 1e10
 
         # MCMC variables
-        self.nwalkers = 20
-        self.niter = 20
+        self.nwalkers = 40
+        self.niter = 100
 
         self.PREOPTIMIZE = 0
         self.POSTOPTIMIZE = 0

@@ -6,6 +6,7 @@ from kursl import KurslMethod
 
 QUICK_TEST = False
 
+
 class TestKurslMethod(unittest.TestCase):
 
     def test_default_init(self):
@@ -17,8 +18,8 @@ class TestKurslMethod(unittest.TestCase):
         self.assertEqual(kursl.f_min, 0)
         self.assertEqual(kursl.f_max, 1e10)
 
-        self.assertEqual(kursl.nwalkers, 20)
-        self.assertEqual(kursl.niter, 50)
+        self.assertEqual(kursl.nwalkers, 40)
+        self.assertEqual(kursl.niter, 100)
 
         self.assertEqual(kursl.theta_init, None)
         self.assertEqual(kursl.samples, None)
@@ -26,11 +27,11 @@ class TestKurslMethod(unittest.TestCase):
 
     def test_set_options(self):
         kursl = KurslMethod()
-        self.assertEqual(kursl.niter, 50)
-
-        options = {"niter": 100, "missing": None}
-        kursl.set_options(options)
         self.assertEqual(kursl.niter, 100)
+
+        options = {"niter": 200, "missing": None}
+        kursl.set_options(options)
+        self.assertEqual(kursl.niter, 200)
 
     def test_compute_prior_default(self):
         """Test default setting for computing prior parameters.
