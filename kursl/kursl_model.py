@@ -1,15 +1,7 @@
-#!/usr/bin/python
-# coding: UTF-8
-#
-# Author: Dawid Laszuk
-# Contact: laszukdawid@gmail.com
-#
-#
-# Feel free to contact for any information.
-from __future__ import print_function
 import numpy as np
 
 from scipy.integrate import ode
+
 
 class KurSL(object):
     """

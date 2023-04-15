@@ -1,6 +1,5 @@
-#!/usr/bin/python
-# Coding: UTF-8
 import logging
+
 
 class ModelWrapper(object):
     """Wrapper for models used in MCMC.

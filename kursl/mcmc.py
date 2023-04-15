@@ -1,19 +1,13 @@
-#!/usr/bin/python
-# coding: UTF-8
-#
-# Author: Dawid Laszuk
-# Contact: laszukdawid@gmail.com
-#
-# Feel free to contact for any information.
-from __future__ import division, print_function
+import datetime
+import logging
+import time
 
 import emcee
-import logging
 import numpy as np
-import time, datetime
 
-from .kursl_model import KurSL
-from .model import ModelWrapper
+from kursl.kursl_model import KurSL
+from kursl.model import ModelWrapper
+
 
 class KurslMCMC(object):
 

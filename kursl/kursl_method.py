@@ -1,22 +1,12 @@
-#!/usr/bin/python
-# coding: UTF-8
-#
-# Author: Dawid Laszuk
-# Contact: laszukdawid@gmail.com
-#
-# Feel free to contact for any information.
-from __future__ import division, print_function
-
-#import matplotlib
-#matplotlib.use("Agg")
-
 import logging
+
 import numpy as np
 import scipy.optimize as opt
 
-from .kursl_model import KurSL
-from .mcmc import KurslMCMC
-from .preprocess import Preprocessor
+from kursl.kursl_model import KurSL
+from kursl.mcmc import KurslMCMC
+from kursl.preprocess import Preprocessor
+
 
 ########################################
 ## Declaring Class

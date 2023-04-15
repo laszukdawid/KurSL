@@ -1,17 +1,9 @@
-#!/usr/bin/python
-# coding: UTF-8
-#
-# Author: Dawid Laszuk
-# Contact: laszukdawid@gmail.com
-#
-# Feel free to contact for any information.
-from __future__ import division, print_function
-
 import logging
+
 import numpy as np
 import scipy.optimize as opt
-
 from scipy.linalg import norm as matrix_norm
+
 
 ########################################
 ## Declaring Class
@@ -209,8 +201,9 @@ class Preprocessor(object):
 ##  MAIN PROGRAMME
 
 if __name__ == "__main__":
-    import pylab as plt
     import sys
+
+    import pylab as plt
 
     from kursl import KurSL
 
