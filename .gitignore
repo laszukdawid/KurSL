@@ -1,3 +1,6 @@
+*.npz
+*.npy
+
 .venv
 .direnv
 
