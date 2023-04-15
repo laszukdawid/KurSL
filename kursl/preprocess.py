@@ -173,7 +173,7 @@ class Preprocessor(object):
 
         # There's no point in analysing
         if(self.param.shape[0]<2):
-            raise Exception("Single oscillator detected. No very interesting case.")
+            raise ValueError("Single oscillator detected. No very interesting case.")
 
         self.oscN = self.param.shape[0]
         self.paramN = 3+self.nH*(self.oscN-1)
