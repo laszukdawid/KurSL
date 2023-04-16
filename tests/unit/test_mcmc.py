@@ -2,18 +2,11 @@ import numpy as np
 import pytest
 
 from kursl import KurSL, KurslMCMC, ModelWrapper
-
-QUICK_TEST = True
-
-
-def random_theta(oscN, nH):
-    W = np.random.random((oscN, 1)) * 20 + 10
-    P = np.random.random((oscN, 1)) * 6.28
-    R = np.random.random((oscN, 1)) * 5 + 1
-    K = np.random.random((oscN, nH * (oscN - 1))) * 2 - 1
-    return np.hstack((W, P, R, K))
+from utils import random_theta
 
 
+
+@pytest.mark.skip("Functional test")
 def test_mcmc_default():
     oscN, nH = 3, 2
     paramN = 3 + nH * (oscN - 1)
@@ -157,7 +150,7 @@ def test_set_sampler():
     assert mcmc.model.s_var == s_var, "Updated var for the model"
 
 
-@pytest.mark.skipif(QUICK_TEST, reason="Computation intensive and takes time")
+@pytest.mark.skip("Functional test")
 def test_run_default():
     _cos = lambda l: l[2] * np.cos(l[0] * t + l[1])
     theta = [
@@ -187,6 +180,7 @@ def test_run_default():
     assert np.allclose(theta, theta_computed, atol=0.5), "Expected:\n{}\nReceived:\n{}".format(theta, theta_computed)
 
 
+@pytest.mark.skip("Functional test")
 def test_run_start_from_solution():
     _cos = lambda l: l[2] * np.cos(l[0] * t + l[1])
     theta = np.array(

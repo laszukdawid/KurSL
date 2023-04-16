@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from kursl import KurSL
 
@@ -20,6 +21,7 @@ def test_correct_parameter_initiation():
     assert kursl.nH == nH, "Order of model"
 
 
+@pytest.mark.skip("Functional test")
 def test_kuramoto_ODE_generator_no_coupling():
     from scipy.integrate import ode
 

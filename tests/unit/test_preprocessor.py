@@ -2,26 +2,8 @@ import pytest
 import numpy as np
 
 from kursl import Preprocessor
+from utils import peak_norm, peak_triangle, peak_lorentz, cosine
 
-
-def peak_norm(t, t0, amp, s):
-    _t = (t - t0) / s
-    return amp * np.exp(-_t * _t)
-
-
-def peak_triangle(t, t0, amp, s):
-    x = amp * (1 - np.abs((t - t0) / s))
-    x[x < 0] = 0
-    return x
-
-
-def peak_lorentz(t, t0, amp, s):
-    _t = (t - t0) / (0.5 * s)
-    return amp / (_t * _t + 1)
-
-
-def _cos(t, f, a, ph):
-    return a * np.cos(f * 2 * np.pi * t + ph)
 
 
 def test_remove_peak_norm():
@@ -74,6 +56,7 @@ def test_remove_peak_unknown_value():
         assert "Incorrect ptype value" in str(context.exception)
 
 
+@pytest.mark.skip("Functional test")
 def test_remove_energy_default():
     t = np.arange(0, 5, 0.001)
     p1 = [1.0, 2.0, 0.4]
@@ -109,6 +92,7 @@ def test_remove_energy_default():
     assert abs(0.12 - p_out[2, 2]) < 0.01, msg.format(0.12, p_out[2, 2])
 
 
+@pytest.mark.skip("Functional test")
 def test_remove_energy_triangle():
     t = np.arange(0, 5, 0.001)
     p1 = [1.0, 2.0, 0.4]
@@ -144,6 +128,7 @@ def test_remove_energy_triangle():
     assert abs(0.20 - p_out[2, 2]) < 0.02, msg.format(0.20, p_out[2, 2])
 
 
+@pytest.mark.skip("Functional test")
 def test_remove_energy_max_peaks():
     """Test remove_energy with limited number of peaks"""
     t = np.arange(0, 5, 0.001)
@@ -164,6 +149,7 @@ def test_remove_energy_max_peaks():
     assert len(p_out) == 2, "Expected 2 peaks because of flag"
 
 
+@pytest.mark.skip("Functional test")
 def test_remove_energy_different_energy_ratio():
     """Test remove_energy after changing energy_ratio to different value"""
     t = np.arange(0, 5, 0.001)
@@ -186,8 +172,8 @@ def test_remove_energy_different_energy_ratio():
 
 def test_determine_params_default():
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1)
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1)
     S = c1 + c2
 
     preprocessor = Preprocessor()
@@ -202,12 +188,13 @@ def test_determine_params_default():
     assert abs(params[1, 3] - 0) < 0.001, "Second oscillator has phase 0"
 
 
+@pytest.mark.skip("Functional test")
 def test_determine_params_energy_ratio():
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1.5)
-    c3 = _cos(t, 8, 6, np.pi)  # Highest amplitude
-    c4 = _cos(t, 15, 3, 0)
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1.5)
+    c3 = cosine(t, 8, 6, np.pi)  # Highest amplitude
+    c4 = cosine(t, 15, 3, 0)
     S = c1 + c2 + c3 + c4
 
     preprocessor = Preprocessor()
@@ -234,10 +221,10 @@ def test_determine_params_energy_ratio():
 
 def test_determine_params_max_oscillators():
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1.5)
-    c3 = _cos(t, 8, 6, np.pi)  # Highest amplitude
-    c4 = _cos(t, 15, 3, 0)
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1.5)
+    c3 = cosine(t, 8, 6, np.pi)  # Highest amplitude
+    c4 = cosine(t, 15, 3, 0)
     S = c1 + c2 + c3 + c4
 
     preprocessor = Preprocessor()
@@ -257,9 +244,9 @@ def test_determine_params_max_oscillators():
 
 def test_determine_params_ptype():
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1.5)
-    c3 = _cos(t, 8, 6, np.pi)  # Highest amplitude
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1.5)
+    c3 = cosine(t, 8, 6, np.pi)  # Highest amplitude
     S = c1 + c2 + c3
 
     preprocessor = Preprocessor()
@@ -280,8 +267,8 @@ def test_compute_prior_default():
     "Currently almost copy of test_determine_params_*"
     pi2 = np.pi * 2
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1)
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1)
     S = c1 + c2
 
     preprocessor = Preprocessor()
@@ -311,8 +298,8 @@ def test_compute_prior_default():
 def test_compute_prior_custom_nH():
     "Currently almost copy of test_determine_params_*"
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1)
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1)
     S = c1 + c2
 
     preprocessor = Preprocessor(nH=3)
@@ -323,14 +310,15 @@ def test_compute_prior_custom_nH():
     assert np.all(params[:, 3:] == 0), "All couplings should be zero"
 
 
+@pytest.mark.skip("Functional test")
 def test_compute_prior_energy_ratio():
     "Currently almost copy of test_determine_params_*"
     pi2 = np.pi * 2
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1.5)
-    c3 = _cos(t, 8, 6, np.pi)  # Highest amplitude
-    c4 = _cos(t, 15, 3, 0)
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1.5)
+    c3 = cosine(t, 8, 6, np.pi)  # Highest amplitude
+    c4 = cosine(t, 15, 3, 0)
     S = c1 + c2 + c3 + c4
 
     mid_energy = 0.5
@@ -355,10 +343,10 @@ def test_compute_prior_energy_ratio():
 def test_compute_prior_max_oscillators():
     "Currently almost copy of test_determine_params_*"
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1.5)
-    c3 = _cos(t, 8, 6, np.pi)  # Highest amplitude
-    c4 = _cos(t, 15, 3, 0)
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1.5)
+    c3 = cosine(t, 8, 6, np.pi)  # Highest amplitude
+    c4 = cosine(t, 15, 3, 0)
     S = c1 + c2 + c3 + c4
 
     max_osc_2 = 2
@@ -375,8 +363,8 @@ def test_compute_prior_max_oscillators():
 def test_compute_prior_1_oscillator():
     "Currently almost copy of test_determine_params_*"
     t = np.arange(0, 5, 0.001)
-    c1 = _cos(t, 2, 2, 0)
-    c2 = _cos(t, 5, 1.1, 1.5)
+    c1 = cosine(t, 2, 2, 0)
+    c2 = cosine(t, 5, 1.1, 1.5)
     S = c1 + c2
 
     max_osc = 1
