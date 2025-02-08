@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0", "wheel"]
 
 [project]
 name = "kursl"
-version = "0.2.2"
+version = "0.2.3"
 authors = [{ name = "Dawid Laszuk" }]
 description = "Implemention of KurSL method"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.8,<3.12"
 keywords = ["KurSL", "Kuramoto", "synchronization", "Kuramoto model"]
 license = { text = "MIT" }
 dependencies = [
