@@ -1,6 +1,5 @@
-import pytest
-
 import numpy as np
+import pytest
 
 from kursl import KurslMethod
 
@@ -26,20 +25,28 @@ def test_compute_prior_default():
     assert params.shape == (2, 4), "Two oscillators (W, ph, A, K)"
 
     # Testing for frequency
-    assert abs(params[0, 0] - 5 * 2 * np.pi) < 0.05, "Expected {} rad/s, Got {} [rad/s]".format(
-        5 * 2 * np.pi, params[0, 0]
+    assert abs(params[0, 0] - 5 * 2 * np.pi) < 0.05, (
+        f"Expected {5 * 2 * np.pi} rad/s, Got {params[0, 0]} [rad/s]"
     )
-    assert abs(params[1, 0] - 2 * 2 * np.pi) < 0.05, "Expected {} rad/s, Got {} [rad/s]".format(
-        2 * 2 * np.pi, params[1, 0]
+    assert abs(params[1, 0] - 2 * 2 * np.pi) < 0.05, (
+        f"Expected {2 * 2 * np.pi} rad/s, Got {params[1, 0]} [rad/s]"
     )
 
     # Testing for phase
-    assert abs(params[0, 1] - 1) < 0.001, "Expected phase {}, Got {}.".format(1, params[0, 1])
-    assert abs(params[1, 1] - 0) < 0.001, "Expected phase {}, Got {}.".format(0, params[1, 1])
+    assert abs(params[0, 1] - 1) < 0.001, "Expected phase {}, Got {}.".format(
+        1, params[0, 1]
+    )
+    assert abs(params[1, 1] - 0) < 0.001, "Expected phase {}, Got {}.".format(
+        0, params[1, 1]
+    )
 
     # Testing for amplitude
-    assert abs(params[0, 2] - 1.1) < 0.1, "Expected amp {}, Got {}.".format(1.1, params[0, 2])
-    assert abs(params[1, 2] - 2) < 0.1, "Expected amp {}, Got {}.".format(2, params[1, 2])
+    assert abs(params[0, 2] - 1.1) < 0.1, "Expected amp {}, Got {}.".format(
+        1.1, params[0, 2]
+    )
+    assert abs(params[1, 2] - 2) < 0.1, "Expected amp {}, Got {}.".format(
+        2, params[1, 2]
+    )
 
     # Testing for coupling
     assert params[0, 3] == 0, "First->Second coupling should be 0"
@@ -61,8 +68,9 @@ def test_compute_prior_high_order():
 
     assert kursl.nH == nH
     assert kursl.oscN == 3, "Three oscillators"
-    assert params.shape == (oscN, paramN), "Expected number of parameters: oscN*( 3 + nH*(oscN-1) )"
-
+    assert params.shape == (oscN, paramN), (
+        "Expected number of parameters: oscN*( 3 + nH*(oscN-1) )"
+    )
 
 
 def test_run_optimize_default():
@@ -87,7 +95,9 @@ def test_run_optimize_default():
     kursl = KurslMethod()
     _theta = kursl.run_optimize(t, S, theta_init=theta_init, maxiter=20)
     assert _theta.shape == theta.shape, "Results in same shape"
-    assert np.allclose(theta, _theta, rtol=1e-1, atol=1e-1), "Expecting fit to be similar to theta initial value"
+    assert np.allclose(theta, _theta, rtol=1e-1, atol=1e-1), (
+        "Expecting fit to be similar to theta initial value"
+    )
 
 
 def test_run_optimize_no_prior():
@@ -116,9 +126,11 @@ def test_run():
     assert theta.shape == (oscN, paramN)
     assert kursl.oscN, oscN
     assert kursl.nH, nH
-    assert np.all(
-        theta == kursl.theta_init
-    ), "After computing make sure it is assigned.\n" "Received\n{}\nGot\n{}".format(theta, kursl.theta_init)
+    assert np.all(theta == kursl.theta_init), (
+        "After computing make sure it is assigned.\nReceived\n{}\nGot\n{}".format(
+            theta, kursl.theta_init
+        )
+    )
 
 
 def test_run_pre_post_optimizations():
@@ -145,6 +157,12 @@ def test_run_pre_post_optimizations():
     assert theta.shape == (oscN, paramN)
     assert kursl.oscN, oscN
     assert kursl.nH, nH
-    assert np.all(
-        theta == kursl.theta_init
-    ), "After computing make sure it is assigned.\n" "Received\n{}\nGot\n{}".format(theta, kursl.theta_init)
+    assert np.all(theta == kursl.theta_init), (
+        "After computing make sure it is assigned.\nReceived\n{}\nGot\n{}".format(
+            theta, kursl.theta_init
+        )
+    )
+
+
+if __name__ == "__main__":
+    test_run_optimize_default()

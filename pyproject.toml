@@ -3,28 +3,28 @@ requires = ["setuptools>=61.0", "wheel"]
 
 [project]
 name = "kursl"
-version = "0.2.3"
+version = "0.3.0"
 authors = [{ name = "Dawid Laszuk" }]
 description = "Implemention of KurSL method"
 readme = "README.md"
-requires-python = ">=3.8,<3.12"
+requires-python = ">=3.13,<3.14"
 keywords = ["KurSL", "Kuramoto", "synchronization", "Kuramoto model"]
 license = { text = "MIT" }
 dependencies = [
-    "numpy>=1.13.3",
-    "scipy<1.11.0",
+    "numpy>=2.0,<3.0",
+    "scipy>1.11.0",
     "emcee>=2.2.1,<3.0",
 ]
 
 [project.optional-dependencies]
 plot = ['matplotlib']
-dev = ['black==23.3.*', 'isort==5.*', 'twine==3.*']
-test = ['pytest==7.*']
+dev = ["ruff==0.9.*"]
+test = ['pytest==8.*']
 
 [tool.setuptools]
 packages = ['kursl']
 
-[tool.black]
+[tool.ruff]
 line-length = 120
 
 [tool.pytest.ini_options]

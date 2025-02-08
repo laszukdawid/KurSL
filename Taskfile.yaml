@@ -1,0 +1,17 @@
+version: 3
+
+tasks:
+  install:
+    cmd: uv sync
+  
+  install:all:
+    cmd: uv sync --extra plot --extra dev --extra test
+  
+  lint:
+    cmd: uv run ruff check
+
+  test:unit:
+    cmd: uv run pytest
+
+  test:full:
+    cmd: uv run pytest -m "not skip"

@@ -1,7 +1,7 @@
 import numpy as np
+from utils import random_theta
 
 from kursl import KurSL, KurslMCMC, ModelWrapper
-from utils import random_theta
 
 
 def test_mcmc_default():
@@ -24,20 +24,20 @@ def test_mcmc_default():
     assert mcmc.threads == 1
     assert mcmc.save_iter == 10
     assert mcmc.THRESHOLD == 0.05
-    assert mcmc.SAVE_INIT_POS == True
+    assert mcmc.SAVE_INIT_POS is True
 
-    assert isinstance(mcmc.model, ModelWrapper), "Default model should be a wrapper ({}), but received {} type".format(
-        ModelWrapper.__name__, type(mcmc.model)
+    assert isinstance(mcmc.model, ModelWrapper), (
+        f"Default model should be a wrapper ({ModelWrapper.__name__}), but received {type(mcmc.model)} type"
     )
-    assert isinstance(
-        mcmc.model.model, KurSL
-    ), "Default model within wrapper should be KurSL ({}), but received {} type".format(
-        KurSL.__name__, type(mcmc.model.model)
+    assert isinstance(mcmc.model.model, KurSL), (
+        f"Default model within wrapper should be KurSL ({KurSL.__name__}), but received {type(mcmc.model.model)} type"
     )
 
 
 def test_run_default():
-    _cos = lambda l: l[2] * np.cos(l[0] * t + l[1])
+    def _cos(val):
+        return val[2] * np.cos(val[0] * t + val[1])
+
     theta = [
         [15, 0, 1, 0],
         [35, 2, 3, 0],
@@ -66,7 +66,9 @@ def test_run_default():
 
 
 def test_run_start_from_solution():
-    _cos = lambda l: l[2] * np.cos(l[0] * t + l[1])
+    def _cos(val):
+        return val[2] * np.cos(val[0] * t + val[1])
+
     theta = np.array(
         [
             [15, 0, 1, 0],
@@ -91,5 +93,5 @@ def test_run_start_from_solution():
     mcmc.run(pos=pos)
     niter_executed = mcmc.get_lnprob().shape[0]
     assert niter_executed < mcmc.niter, (
-        "Starting close solution should allow for quick convergence " "and not all iterations would be executed."
+        "Starting close solution should allow for quick convergence and not all iterations would be executed."
     )

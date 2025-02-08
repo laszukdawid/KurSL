@@ -1,9 +1,8 @@
 import numpy as np
 import pytest
-
-from kursl import KurSL, KurslMCMC, ModelWrapper
 from utils import random_theta
 
+from kursl import KurSL, KurslMCMC, ModelWrapper
 
 
 @pytest.mark.skip("Functional test")
@@ -27,15 +26,15 @@ def test_mcmc_default():
     assert mcmc.threads == 1
     assert mcmc.save_iter == 10
     assert mcmc.THRESHOLD == 0.05
-    assert mcmc.SAVE_INIT_POS == True
+    assert mcmc.SAVE_INIT_POS is True
 
     assert isinstance(mcmc.model, ModelWrapper), "Default model should be a wrapper ({}), but received {} type".format(
         ModelWrapper.__name__, type(mcmc.model)
     )
-    assert isinstance(
-        mcmc.model.model, KurSL
-    ), "Default model within wrapper should be KurSL ({}), but received {} type".format(
-        KurSL.__name__, type(mcmc.model.model)
+    assert isinstance(mcmc.model.model, KurSL), (
+        "Default model within wrapper should be KurSL ({}), but received {} type".format(
+            KurSL.__name__, type(mcmc.model.model)
+        )
     )
 
 
@@ -58,9 +57,9 @@ def test_init_walkers():
     nwalkers = mcmc.nwalkers
 
     assert mcmc.init_pos.shape == (nwalkers, oscN * paramN)
-    assert np.all(
-        mcmc.init_pos[0] == theta_init.flatten()
-    ), f"First walker should have the same values as passed. First walkers:\n{mcmc.init_pos[0]}\nPassed:\n{theta_init}"
+    assert np.all(mcmc.init_pos[0] == theta_init.flatten()), (
+        f"First walker should have the same values as passed. First walkers:\n{mcmc.init_pos[0]}\nPassed:\n{theta_init}"
+    )
 
 
 def test_init_walkers_incorrect_theta_std():
@@ -88,9 +87,9 @@ def test_init_walkers_proper_scaling_with_K():
     mcmc = KurslMCMC(theta_init)
     theta_mcmc = mcmc.init_pos[0].reshape(theta_init.shape)
     assert theta_mcmc[0, 0] == 10, "Intrinsic freq stays the same"
-    assert np.allclose(
-        theta_mcmc[0, 3:], [4.9, 4.9]
-    ), "If W==sum(K) all couplings are scaled by 0.98*W, same as for W<sum(K)."
+    assert np.allclose(theta_mcmc[0, 3:], [4.9, 4.9]), (
+        "If W==sum(K) all couplings are scaled by 0.98*W, same as for W<sum(K)."
+    )
     assert np.allclose(theta_mcmc[1, 3:], [5, 5]), "For W>sum(K) nothing should be changed."
     assert np.allclose(theta_mcmc[2, 3:], [2.8, 16.8]), "If W<sum(K) all couplings are scaled by 0.98*W"
 
@@ -144,15 +143,17 @@ def test_set_sampler():
     assert mcmc.sampler is None, "Without explicit assignment there should be no sampler."
 
     mcmc.set_sampler(t, S)
-    assert (
-        type(mcmc.sampler).__name__ == "EnsembleSampler"
-    ), "Executing `set_sampler` should create EnsembleSampler `sampler`"
+    assert type(mcmc.sampler).__name__ == "EnsembleSampler", (
+        "Executing `set_sampler` should create EnsembleSampler `sampler`"
+    )
     assert mcmc.model.s_var == s_var, "Updated var for the model"
 
 
 @pytest.mark.skip("Functional test")
 def test_run_default():
-    _cos = lambda l: l[2] * np.cos(l[0] * t + l[1])
+    def _cos(val):
+        return val[2] * np.cos(val[0] * t + val[1])
+
     theta = [
         [15, 0, 1, 0],
         [35, 2, 3, 0],
@@ -182,7 +183,9 @@ def test_run_default():
 
 @pytest.mark.skip("Functional test")
 def test_run_start_from_solution():
-    _cos = lambda l: l[2] * np.cos(l[0] * t + l[1])
+    def _cos(val):
+        return val[2] * np.cos(val[0] * t + val[1])
+
     theta = np.array(
         [
             [15, 0, 1, 0],
@@ -207,7 +210,7 @@ def test_run_start_from_solution():
     mcmc.run(pos=pos)
     niter_executed = mcmc.get_lnprob().shape[0]
     assert niter_executed < mcmc.niter, (
-        "Starting close solution should allow for quick convergence " "and not all iterations would be executed."
+        "Starting close solution should allow for quick convergence and not all iterations would be executed."
     )
 
 
@@ -284,7 +287,6 @@ def test_lnlikelihood_zero():
 
 
 def test_lnprior():
-    t = np.arange(0, 1, 0.01)
     theta = random_theta(3, 2)
     kursl = KurSL(theta)
     model = ModelWrapper(kursl)
@@ -295,8 +297,6 @@ def test_lnprior():
 
 
 def test_lnprior_theta_outside_ranges():
-    t = np.arange(0, 1, 0.01)
-    S = np.random.random(t.size)
     theta = random_theta(3, 2)
     kursl = KurSL(theta)
     model = ModelWrapper(kursl)
