@@ -7,7 +7,7 @@ version = "0.3.0"
 authors = [{ name = "Dawid Laszuk" }]
 description = "Implemention of KurSL method"
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.12,<3.14"
 keywords = ["KurSL", "Kuramoto", "synchronization", "Kuramoto model"]
 license = { text = "MIT" }
 dependencies = [
