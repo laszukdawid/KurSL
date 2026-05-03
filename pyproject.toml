@@ -18,8 +18,8 @@ dependencies = [
 
 [project.optional-dependencies]
 plot = ['matplotlib']
-dev = ["ruff==0.9.*"]
-test = ['pytest==8.*']
+dev = ["ruff==0.15.*"]
+test = ['pytest==9.0.*']
 
 [tool.setuptools]
 packages = ['kursl']
