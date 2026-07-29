@@ -30,7 +30,7 @@ def fit(case: KnownMCMCSignal) -> MCMCResult:
                 case.theta_init,
                 case.theta_std,
                 nwalkers=case.nwalkers,
-                niter=case.niter,
+                niter=case.measured_iterations,
             )
             mcmc.set_threshold(0.0)
             mcmc.set_sampler(case.time, case.values)
@@ -47,19 +47,18 @@ def fit(case: KnownMCMCSignal) -> MCMCResult:
 def validate(case: KnownMCMCSignal, result: MCMCResult) -> None:
     np.testing.assert_equal(result.theta.shape, case.theta.shape)
     np.testing.assert_equal(result.reconstruction.shape, case.values.shape)
-    np.testing.assert_equal(result.iterations, case.niter)
-    np.testing.assert_allclose(result.theta[:, 0], case.theta[:, 0], rtol=0, atol=0.6)
-    np.testing.assert_allclose(result.theta[:, 1], case.theta[:, 1], rtol=0, atol=0.3)
-    np.testing.assert_allclose(result.theta[:, 2], case.theta[:, 2], rtol=0, atol=0.35)
-    np.testing.assert_allclose(result.theta[:, 3:], case.theta[:, 3:], rtol=0, atol=0.03)
+    np.testing.assert_equal(result.iterations, case.measured_iterations)
+    np.testing.assert_allclose(result.theta[:, 0], case.theta[:, 0], rtol=0, atol=case.frequency_tolerance)
+    np.testing.assert_allclose(result.theta[:, 1], case.theta[:, 1], rtol=0, atol=case.phase_tolerance)
+    np.testing.assert_allclose(result.theta[:, 2], case.theta[:, 2], rtol=0, atol=case.amplitude_tolerance)
+    np.testing.assert_allclose(result.theta[:, 3:], case.theta[:, 3:], rtol=0, atol=case.coupling_tolerance)
 
     residual = result.reconstruction - case.values
     relative_error = np.sum(residual * residual) / np.sum(case.values * case.values)
-    np.testing.assert_array_less(relative_error, 0.05)
+    np.testing.assert_array_less(relative_error, case.max_relative_error)
 
 
 def measure(case: KnownMCMCSignal, repetitions: int) -> tuple[str, float, float, float]:
-    validate(case, fit(case))
     durations = []
     for _ in range(repetitions):
         started_at = time.perf_counter()
@@ -78,10 +77,14 @@ def main() -> None:
         parser.error("--repetitions must be at least 1")
 
     print(f"Python {platform.python_version()} | NumPy {np.__version__} | SciPy {scipy.__version__}")
-    print(f"{'benchmark':<32} {'median (s)':>12} {'min (s)':>12} {'max (s)':>12}")
+    print(f"{'benchmark':<28} {'iter':>6} {'median':>10} {'min':>10} {'max':>10} {'projected':>12}")
     for case in KNOWN_MCMC_SIGNALS:
         name, median, minimum, maximum = measure(case, args.repetitions)
-        print(f"{name:<32} {median:>12.3f} {minimum:>12.3f} {maximum:>12.3f}")
+        projected = median * case.target_iterations / case.measured_iterations
+        print(
+            f"{name:<28} {case.measured_iterations:>6} {median:>9.3f}s {minimum:>9.3f}s "
+            f"{maximum:>9.3f}s {projected / 60:>10.1f} min"
+        )
 
 
 if __name__ == "__main__":

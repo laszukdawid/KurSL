@@ -14,6 +14,8 @@ For the code on how this example was generated please see `examples/kursl_exampl
 
 ## MCMC Benchmark
 
-Run `task benchmark` (or `uv run python -m benchmarks.benchmark_mcmc`) to measure the legacy MCMC implementation on a
-deterministic signal with known parameters. Every warm-up and measured fit is validated; incorrect parameter recovery,
-shape, iteration count, or reconstruction error fails the benchmark instead of recording a timing.
+Run `task benchmark` (or `uv run python -m benchmarks.benchmark_mcmc`) to measure the legacy MCMC implementation on
+deterministic signals with known parameters. The suite includes a quick fit and a representative workload matching the
+4,097-sample, four-oscillator, second-order configuration in `examples/kursl_epilepsy.py`. The representative case
+measures complete MCMC iterations and projects the configured 100-iteration runtime. Every run is validated; incorrect
+parameter recovery, shape, iteration count, or reconstruction error fails the benchmark instead of recording a timing.
