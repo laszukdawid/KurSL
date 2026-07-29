@@ -11,3 +11,9 @@ The example below was produced using the *KurSL* model. It was generated assumin
 For the code on how this example was generated please see `examples/kursl_example.py`.
 
 <img src="./examples/KurSL_example.png" alt="Example of the KurSL model" width="500px"/>
+
+## MCMC Benchmark
+
+Run `task benchmark` (or `uv run python -m benchmarks.benchmark_mcmc`) to measure the legacy MCMC implementation on a
+deterministic signal with known parameters. Every warm-up and measured fit is validated; incorrect parameter recovery,
+shape, iteration count, or reconstruction error fails the benchmark instead of recording a timing.
