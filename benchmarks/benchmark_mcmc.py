@@ -18,6 +18,7 @@ class MCMCResult:
     theta: np.ndarray
     reconstruction: np.ndarray
     iterations: int
+    relative_error: float
 
 
 def fit(case: KnownMCMCSignal) -> MCMCResult:
@@ -41,7 +42,9 @@ def fit(case: KnownMCMCSignal) -> MCMCResult:
         os.chdir(previous_directory)
 
     reconstruction = np.sum(KurSL(theta).generate(case.time)[2], axis=0)
-    return MCMCResult(theta, reconstruction, iterations)
+    residual = reconstruction - case.values
+    relative_error = np.sum(residual * residual) / np.sum(case.values * case.values)
+    return MCMCResult(theta, reconstruction, iterations, relative_error)
 
 
 def validate(case: KnownMCMCSignal, result: MCMCResult) -> None:
@@ -53,20 +56,20 @@ def validate(case: KnownMCMCSignal, result: MCMCResult) -> None:
     np.testing.assert_allclose(result.theta[:, 2], case.theta[:, 2], rtol=0, atol=case.amplitude_tolerance)
     np.testing.assert_allclose(result.theta[:, 3:], case.theta[:, 3:], rtol=0, atol=case.coupling_tolerance)
 
-    residual = result.reconstruction - case.values
-    relative_error = np.sum(residual * residual) / np.sum(case.values * case.values)
-    np.testing.assert_array_less(relative_error, case.max_relative_error)
+    np.testing.assert_array_less(result.relative_error, case.max_relative_error)
 
 
-def measure(case: KnownMCMCSignal, repetitions: int) -> tuple[str, float, float, float]:
+def measure(case: KnownMCMCSignal, repetitions: int) -> tuple[str, float, float, float, float]:
     durations = []
+    relative_errors = []
     for _ in range(repetitions):
         started_at = time.perf_counter()
         result = fit(case)
         durations.append(time.perf_counter() - started_at)
         validate(case, result)
+        relative_errors.append(result.relative_error)
 
-    return case.name, statistics.median(durations), min(durations), max(durations)
+    return case.name, statistics.median(durations), min(durations), max(durations), max(relative_errors)
 
 
 def main() -> None:
@@ -77,13 +80,13 @@ def main() -> None:
         parser.error("--repetitions must be at least 1")
 
     print(f"Python {platform.python_version()} | NumPy {np.__version__} | SciPy {scipy.__version__}")
-    print(f"{'benchmark':<28} {'iter':>6} {'median':>10} {'min':>10} {'max':>10} {'projected':>12}")
+    print(f"{'benchmark':<42} {'median':>10} {'min':>10} {'max':>10} {'recon error':>12} {'projected':>12}")
     for case in KNOWN_MCMC_SIGNALS:
-        name, median, minimum, maximum = measure(case, args.repetitions)
+        name, median, minimum, maximum, relative_error = measure(case, args.repetitions)
         projected = median * case.target_iterations / case.measured_iterations
         print(
-            f"{name:<28} {case.measured_iterations:>6} {median:>9.3f}s {minimum:>9.3f}s "
-            f"{maximum:>9.3f}s {projected / 60:>10.1f} min"
+            f"{name:<42} {median:>9.3f}s {minimum:>9.3f}s {maximum:>9.3f}s "
+            f"{relative_error:>12.3e} {projected / 60:>10.1f} min"
         )
 
 
