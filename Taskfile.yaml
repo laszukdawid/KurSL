@@ -15,3 +15,6 @@ tasks:
 
   test:full:
     cmd: uv run pytest -m "not skip"
+
+  benchmark:
+    cmd: uv run python -m benchmarks.benchmark_mcmc
